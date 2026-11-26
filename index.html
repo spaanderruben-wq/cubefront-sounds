@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cubefront Sound Booth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column of kit cards (two or three on wide screens) under a sticky tab bar; each card = the model, then its sound slots. */
+:root {
+  color-scheme: dark;
+  --bg: #15170f; --panel: #1f2218; --panel2: #282c20; --line: #3a3f2e;
+  --fg: #e8e6d6; --dim: #a3a48e; --brass: #d9ad4f; --brass-d: #8a6a26; --rec: #e2553f; --ok: #8fc46a;
+  --display: "Saira Stencil One", "Arial Black", Impact, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+html, body { background: var(--bg); color: var(--fg); }
+[hidden] { display: none !important; }
+body { font-family: var(--body); font-size: 15px; line-height: 1.45; margin: 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+header { padding-block: 22px 6px; max-width: 1180px; margin: 0 auto; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(30px, 7vw, 46px); letter-spacing: 0.02em; margin: 0; color: var(--brass); text-wrap: balance; line-height: 1.05; }
+.lead { color: var(--dim); margin: 8px 0 0; max-width: 62ch; }
+.status { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 10px; letter-spacing: 0.03em; }
+.status b { color: var(--ok); font-weight: 500; }
+.status.warn b { color: var(--brass); }
+nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; max-width: 1180px; margin: 0 auto; display: flex; gap: 8px; border-bottom: 1px solid var(--line); }
+nav button { font: 600 14px var(--body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+nav button[aria-selected="true"] { color: var(--bg); background: var(--brass); border-color: var(--brass); }
+main { max-width: 1180px; margin: 0 auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.stage { position: relative; background: radial-gradient(ellipse at 50% 60%, #2d3224 0%, #1a1c14 75%); height: 190px; touch-action: pan-y; cursor: grab; }
+.stage canvas { width: 100%; height: 100%; display: block; }
+.stage .hint { position: absolute; right: 10px; bottom: 8px; font: 500 11px var(--mono); color: var(--dim); opacity: 0.8; pointer-events: none; }
+.info { padding: 12px 14px 4px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.info h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0; letter-spacing: 0.02em; }
+.spec { font: 500 12px var(--mono); color: var(--dim); white-space: nowrap; }
+.about { color: var(--dim); font-size: 13px; padding: 0 14px; margin: 0; }
+.slots { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.slot { background: var(--panel2); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.slot .lab { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+.slot .lab span:last-child { font: 500 11px var(--mono); color: var(--dim); font-weight: 500; }
+.wave { width: 100%; height: 38px; display: block; background: #171910; border-radius: 4px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { font: 600 13px var(--body); color: var(--fg); background: #33382a; border: 1px solid #454b37; border-radius: 6px; padding: 9px 12px; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn.rec { background: #3c231d; border-color: #6e3426; color: #ffb3a4; }
+.btn.rec.on { background: var(--rec); color: #fff; border-color: var(--rec); animation: pulse 1s infinite; }
+.btn.fire { background: var(--brass); color: #1b1608; border-color: var(--brass); flex: 1 1 auto; touch-action: none; }
+.btn.fire.on { background: #ffd775; }
+.btn.x { background: transparent; color: var(--dim); }
+.btn:focus-visible, nav button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+@keyframes pulse { 50% { opacity: 0.7; } }
+@media (prefers-reduced-motion: reduce) { .btn.rec.on { animation: none; } }
+.len { display: flex; align-items: center; gap: 8px; font: 500 12px var(--mono); color: var(--dim); }
+.len input { flex: 1; accent-color: var(--brass); min-width: 0; }
+.len output { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.empty { font: 500 12px var(--mono); color: var(--dim); }
+.how { max-width: 1180px; margin: 22px auto 0; color: var(--dim); font-size: 13px; }
+.how h3 { font-family: var(--display); font-weight: 400; color: var(--fg); font-size: 18px; margin: 0 0 6px; }
+.how ol { margin: 0; padding-left: 20px; max-width: 70ch; }
+#toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #0d0e09; color: var(--fg); border: 1px solid var(--brass-d); padding: 9px 14px; border-radius: 8px; font-size: 13px; max-width: calc(100% - 32px); z-index: 20; }
+.namef { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; font: 600 13px var(--body); letter-spacing: 0.05em; text-transform: uppercase; color: var(--dim); }
+.namef input { flex: 1 1 220px; max-width: 360px; font: 500 16px var(--body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; text-transform: none; letter-spacing: 0; }
+.namef input:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+.entries { display: flex; flex-direction: column; gap: 6px; }
+.entry { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 6px; background: #22261b; border: 1px solid transparent; }
+.entry.lead { border-color: var(--brass-d); background: #2b2a1a; }
+.who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.who .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tag { font: 500 10px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: #1b1608; background: var(--brass); border-radius: 999px; padding: 2px 7px; flex: none; }
+.btn.small { flex: 0 0 auto; }
+.btn.vote { font-variant-numeric: tabular-nums; min-width: 58px; }
+.btn.vote.on { background: #3b3216; border-color: var(--brass); color: var(--brass); }
+.btn.send { background: #2c3a22; border-color: #4d6a36; color: #cfe8b4; }
+.mine { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.mineh { font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.panel h3 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0; color: var(--brass); }
+.panel .sub { color: var(--dim); font-size: 13px; margin: 4px 0 12px; }
+.ranks { margin: 0; padding-left: 26px; display: flex; flex-direction: column; gap: 8px; font-variant-numeric: tabular-nums; }
+.ranks li { padding: 8px 10px; background: var(--panel2); border-radius: 6px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.ranks li.top { outline: 1px solid var(--brass-d); background: #2b2a1a; }
+.ranks .nm { font-weight: 600; } .ranks .st { font: 500 12px var(--mono); color: var(--dim); }
+.tablewrap { overflow-x: auto; }
+#perSound { width: 100%; border-collapse: collapse; font-size: 13px; }
+#perSound th { text-align: left; font: 500 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+#perSound td { padding: 7px 8px; border-bottom: 1px solid #2a2e22; vertical-align: top; }
+#perSound .num { text-align: right; font-variant-numeric: tabular-nums; }
+#perSound .win { font-weight: 600; color: var(--brass); } .dim { color: var(--dim); }
+.foot { max-width: 1180px; margin: 26px auto 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; color: var(--dim); font-size: 12px; }
+</style>
+
+</head>
+<body>
+<header>
+  <h1>Cubefront Sound Booth</h1>
+  <p class="lead">Record your own sounds for the guns, the helicopter and jet, the zombies and your character, send them in, and vote for the best one. Every shot is cut short for you automatically; hold <b>Fire</b> to hear it at the gun's real fire rate. The sounds with the most votes go into the game.</p>
+  <label class="namef" for="myName"><span>Your name</span><input id="myName" maxlength="24" autocomplete="nickname" placeholder="So people know whose sound it is"></label>
+  <div class="status" id="status">Loading your saved sounds…</div>
+</header>
+<nav role="tablist">
+  <button role="tab" id="tabGuns" aria-selected="true">Guns</button>
+  <button role="tab" id="tabZombies" aria-selected="false">Zombies</button>
+  <button role="tab" id="tabYou" aria-selected="false">You</button>
+  <button role="tab" id="tabScores" aria-selected="false">Scores</button>
+</nav>
+<main>
+  <section id="guns" class="grid"></section>
+  <section id="zombies" class="grid" hidden></section>
+  <section id="you" class="grid" hidden></section>
+  <section id="scores" hidden>
+    <div class="board">
+      <div class="panel"><h3>Top sound makers</h3><p class="sub">Points = all votes your sounds got. A crown for every sound you lead.</p><ol id="people" class="ranks"></ol></div>
+      <div class="panel"><h3>Leading per sound</h3><p class="sub">The entry with the most votes. On a tie the one sent in first leads.</p><div class="tablewrap"><table id="perSound"><thead><tr><th>Sound</th><th>Leading</th><th class="num">Votes</th><th>Next</th></tr></thead><tbody></tbody></table></div></div>
+    </div>
+  </section>
+</main>
+<div class="how">
+  <h3>How recording works</h3>
+  <ol>
+    <li>Tap <b>Record</b>. If the page may use your microphone it records right here (tap again to stop). Otherwise your phone opens its own recorder, or lets you pick a sound file.</li>
+    <li>The silence before the sound is cut off and the volume is levelled. Gun shots are also cut to the length on the slider and fade out at the end.</li>
+    <li>Happy with it? Tap <b>Send in</b>. Everyone sees it under that sound with your name, and can vote for it (one vote per sound, tap again to take it back).</li>
+    <li>Send in a new one to replace your old entry for that sound. The most-voted entry for each sound goes into the game.</li>
+  </ol>
+</div>
+<input type="file" id="pick" accept="audio/*" capture hidden>
+<footer class="foot"><button type="button" class="btn x" id="ownerBtn">Ruben: sign in to tidy up</button><span>Made for Cubefront · sounds and votes are stored on Google Firebase</span></footer>
+<div id="toast" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const FIREBASE_CONFIG = null;
+const MODELS = {"guns":{"ar":[[0,0,0.02,0.032,0.045,0.17,[0,0,0,1],0.13,0.135,0.145],[0,0,-0.24,0.036,0.038,0.1,[0,0,0,1],0.56,0.48,0.33],[0,0.005,-0.4,0.012,0.012,0.08,[0,0,0,1],0.13,0.135,0.145],[0,0.005,-0.48,0.017,0.017,0.022,[0,0,0,1],0.13,0.135,0.145],[0,-0.1,-0.05,0.024,0.065,0.035,[0,0,0,1],0.56,0.48,0.33],[0,-0.075,0.08,0.022,0.045,0.025,[0,0,0,1],0.13,0.135,0.145],[0,-0.015,0.27,0.028,0.045,0.09,[0,0,0,1],0.56,0.48,0.33],[0,0.048,-0.05,0.016,0.006,0.17,[0,0,0,1],0.13,0.135,0.145],[0,0.072,-0.02,0.022,0.022,0.05,[0,0,0,1],0.13,0.135,0.145],[0,0.072,-0.072,0.004,0.004,0.002,[0,0,0,1],1,0.1,0.05]],"smg":[[0,0,0,0.03,0.045,0.13,[0,0,0,1],0.13,0.135,0.145],[0,0.005,-0.18,0.026,0.03,0.07,[0,0,0,1],0.2,0.21,0.2],[0,0.005,-0.27,0.01,0.01,0.03,[0,0,0,1],0.13,0.135,0.145],[0,-0.09,-0.06,0.018,0.06,0.022,[0,0,0,1],0.13,0.135,0.145],[0,-0.07,0.06,0.02,0.045,0.022,[0,0,0,1],0.2,0.21,0.2],[0,0,0.2,0.012,0.025,0.08,[0,0,0,1],0.13,0.135,0.145],[0,0.062,-0.02,0.018,0.016,0.035,[0,0,0,1],0.13,0.135,0.145],[0,0.062,-0.056,0.003,0.003,0.002,[0,0,0,1],1,0.1,0.05]],"dmr":[[0,0,0.02,0.032,0.048,0.2,[0,0,0,1],0.3,0.33,0.23],[0,0.008,-0.42,0.013,0.013,0.2,[0,0,0,1],0.13,0.135,0.145],[0,0,-0.26,0.035,0.036,0.1,[0,0,0,1],0.3,0.33,0.23],[0,-0.085,-0.02,0.024,0.04,0.04,[0,0,0,1],0.13,0.135,0.145],[0,-0.075,0.1,0.022,0.045,0.025,[0,0,0,1],0.13,0.135,0.145],[0,-0.02,0.32,0.03,0.055,0.1,[0,0,0,1],0.3,0.33,0.23],[0,0.085,-0.04,0.026,0.026,0.15,[0,0,0,1],0.13,0.135,0.145],[0,0.085,-0.19,0.034,0.034,0.025,[0,0,0,1],0.13,0.135,0.145],[0,0.085,0.1,0.03,0.03,0.025,[0,0,0,1],0.13,0.135,0.145],[0,0.06,-0.08,0.012,0.015,0.012,[0,0,0,1],0.13,0.135,0.145],[0,0.06,0.03,0.012,0.015,0.012,[0,0,0,1],0.13,0.135,0.145]],"pistol":[[0,0.02,-0.05,0.022,0.026,0.1,[0,0,0,1],0.13,0.135,0.145],[0,-0.012,-0.04,0.02,0.016,0.09,[0,0,0,1],0.2,0.21,0.2],[0,-0.07,0.03,0.02,0.055,0.026,[0,0,0,1],0.2,0.21,0.2],[0,0.05,-0.135,0.004,0.006,0.004,[0,0,0,1],0.13,0.135,0.145],[-0.012,0.05,0.04,0.004,0.006,0.004,[0,0,0,1],0.13,0.135,0.145],[0.012,0.05,0.04,0.004,0.006,0.004,[0,0,0,1],0.13,0.135,0.145]],"mini":[[0,0,0.05,0.05,0.055,0.14,[0,0,0,1],0.13,0.135,0.145],[0,0,-0.1,0.06,0.06,0.04,[0,0,0,1],0.2,0.21,0.2],[0,-0.01,-0.5,0.06,0.06,0.02,[0,0,0,1],0.2,0.21,0.2],[0,-0.1,0.02,0.07,0.07,0.09,[0,0,0,1],0.3,0.33,0.23],[0,-0.1,0.02,0.075,0.03,0.095,[0,0,0,1],0.13,0.135,0.145],[0,-0.13,-0.08,0.02,0.05,0.025,[0,0,0,1],0.13,0.135,0.145],[0,0.07,0,0.015,0.02,0.1,[0,0,0,1],0.13,0.135,0.145],[0,0,0.2,0.03,0.03,0.05,[0,0,0,1],0.13,0.135,0.145],[0.032,0,-0.32,0.009,0.009,0.2,[0,0,0,1],0.2,0.2,0.22],[0.016,0.028,-0.32,0.009,0.009,0.2,[0,0,0,1],0.2,0.2,0.22],[-0.016,0.028,-0.32,0.009,0.009,0.2,[0,0,0,1],0.2,0.2,0.22],[-0.032,0,-0.32,0.009,0.009,0.2,[0,0,0,1],0.2,0.2,0.22],[-0.016,-0.028,-0.32,0.009,0.009,0.2,[0,0,0,1],0.2,0.2,0.22],[0.016,-0.028,-0.32,0.009,0.009,0.2,[0,0,0,1],0.2,0.2,0.22],[0,0,-0.15,0.042,0.042,0.008,[0,0,0,1],0.3,0.3,0.32],[0,0,-0.35,0.042,0.042,0.008,[0,0,0,1],0.3,0.3,0.32],[0,0,-0.5,0.042,0.042,0.008,[0,0,0,1],0.3,0.3,0.32]],"rpg":[[0,0,-0.1,0.06,0.06,0.45,[0,0,0,1],0.3,0.33,0.23],[0,0,-0.6,0.075,0.075,0.08,[0,0,0,1],0.3,0.33,0.23],[0,0,-0.7,0.05,0.05,0.04,[0,0,0,1],0.13,0.135,0.145],[0,-0.09,0,0.02,0.05,0.02,[0,0,0,1],0.13,0.135,0.145],[0,-0.08,-0.22,0.02,0.045,0.02,[0,0,0,1],0.13,0.135,0.145],[-0.075,0.05,-0.15,0.01,0.03,0.02,[0,0,0,1],0.13,0.135,0.145],[0,0,0.36,0.065,0.065,0.02,[0,0,0,1],0.13,0.135,0.145]],"nap":[[0,0,-0.1,0.06,0.06,0.45,[0,0,0,1],0.78,0.3,0.08],[0,0,-0.6,0.075,0.075,0.08,[0,0,0,1],0.78,0.3,0.08],[0,0,-0.7,0.05,0.05,0.04,[0,0,0,1],0.13,0.135,0.145],[0,-0.09,0,0.02,0.05,0.02,[0,0,0,1],0.13,0.135,0.145],[0,-0.08,-0.22,0.02,0.045,0.02,[0,0,0,1],0.13,0.135,0.145],[-0.075,0.05,-0.15,0.01,0.03,0.02,[0,0,0,1],0.13,0.135,0.145],[0,0,0.36,0.065,0.065,0.02,[0,0,0,1],0.13,0.135,0.145]],"sword":[[0,-0.06,0.1,0.017,0.019,0.12,[0,0,0,1],0.08,0.07,0.1],[0,-0.06,-0.025,0.038,0.038,0.007,[0,0,0,1],0.72,0.56,0.22],[0,-0.06,-0.06,0.012,0.02,0.03,[0,0,0,1],0.72,0.56,0.22],[0,-0.058,-0.36,0.004,0.017,0.3,[0,0,0,1],0.66,0.68,0.72],[0,-0.042,-0.36,0.005,0.003,0.3,[0,0,0,1],0.13,0.135,0.145],[0,-0.053,-0.68,0.004,0.011,0.025,[0,0,0,1],0.66,0.68,0.72],[0,-0.06,0.225,0.02,0.02,0.008,[0,0,0,1],0.72,0.56,0.22]],"saw":[[0,-0.07,0.06,0.06,0.07,0.13,[0,0,0,1],0.93,0.44,0.07],[0,-0.02,0,0.055,0.03,0.08,[0,0,0,1],0.13,0.135,0.145],[0,0.04,-0.02,0.012,0.02,0.07,[0,0,0,1],0.13,0.135,0.145],[0,0,0.04,0.05,0.012,0.012,[0,0,0,1],0.13,0.135,0.145],[0,-0.1,0.2,0.016,0.035,0.03,[0,0,0,1],0.13,0.135,0.145],[0,-0.08,-0.34,0.006,0.034,0.25,[0,0,0,1],0.66,0.68,0.72],[0,-0.04,-0.34,0.009,0.006,0.25,[0,0,0,1],0.13,0.135,0.145],[0,-0.12,-0.34,0.009,0.006,0.25,[0,0,0,1],0.13,0.135,0.145],[0,-0.08,-0.6,0.009,0.04,0.015,[0,0,0,1],0.13,0.135,0.145]]},"zombies":[[[-0.12,0.457,0.123,0.115,0.29,0.125,[-0.217,0,0,0.976],0.24,0.22,0.2,0],[-0.12,0.125,0.239,0.125,0.085,0.16,[-0.217,0,0,0.976],0.15,0.13,0.11,0],[0.12,0.457,-0.123,0.115,0.29,0.125,[0.217,0,0,0.976],0.24,0.22,0.2,0],[0.12,0.155,-0.303,0.125,0.085,0.16,[0.217,0,0,0.976],0.15,0.13,0.11,0],[0,1.05,0,0.24,0.33,0.135,[0,0,0,1],0.34,0.37,0.31,0],[0.09,1,-0.137,0.07,0.09,0.004,[0,0,0,1],0.42,0.05,0.04,0],[-0.12,1.22,-0.137,0.05,0.04,0.004,[0,0,0,1],0.35,0.04,0.03,0],[0,0.78,0,0.25,0.04,0.145,[0,0,0,1],0.15,0.14,0.12,0],[0,1.574,0.049,0.2,0.2,0.2,[0.125,0,0,0.992],0.43,0.56,0.36,0],[0,1.75,0.126,0.205,0.035,0.19,[0.125,0,0,0.992],0.2,0.24,0.16,0],[0.08,1.614,-0.148,0.035,0.028,0.01,[0.125,0,0,0.992],1,0.15,0.08,1],[-0.08,1.614,-0.148,0.035,0.028,0.01,[0.125,0,0,0.992],1,0.15,0.08,1],[0,1.498,-0.177,0.06,0.015,0.01,[0.125,0,0,0.992],0.301,0.336,0.216,0],[-0.318,1.35,-0.298,0.09,0.32,0.095,[0.741,0.022,-0.02,0.67],0.34,0.37,0.31,0],[-0.34,1.386,-0.655,0.075,0.06,0.08,[0.741,0.022,-0.02,0.67],0.43,0.56,0.36,0],[0.318,1.35,-0.298,0.09,0.32,0.095,[0.741,-0.022,0.02,0.67],0.34,0.37,0.31,0],[0.34,1.386,-0.655,0.075,0.06,0.08,[0.741,-0.022,0.02,0.67],0.43,0.56,0.36,0]],[[-0.195,0.374,0.111,0.15,0.313,0.157,[-0.18,0,0,0.984],0.25,0.22,0.2,0],[-0.195,0.092,0.169,0.161,0.069,0.209,[-0.18,0,0,0.984],0.15,0.13,0.12,0],[0.196,0.374,-0.111,0.15,0.313,0.157,[0.18,0,0,0.984],0.25,0.22,0.2,0],[0.196,0.124,-0.255,0.161,0.069,0.209,[0.18,0,0,0.984],0.15,0.13,0.12,0],[0,1.08,-0.025,0.483,0.414,0.414,[-0.03,0,0,1],0.36,0.36,0.3,0],[0,0.971,-0.456,0.386,0.248,0.046,[-0.03,0,0,1],0.75,0.82,0.3,1],[0,1.328,-0.04,0.338,0.104,0.331,[-0.03,0,0,1],0.62,0.62,0.36,0],[0,1.677,-0.036,0.184,0.184,0.184,[0.038,0,0,0.999],0.62,0.62,0.36,0],[0.077,1.701,-0.224,0.031,0.024,0.012,[0.038,0,0,0.999],0.85,0.95,0.25,1],[-0.077,1.701,-0.224,0.031,0.024,0.012,[0.038,0,0,0.999],0.85,0.95,0.25,1],[0,1.581,-0.233,0.064,0.013,0.012,[0.038,0,0,0.999],0.3,0.05,0.05,0],[-0.61,1.121,-0.173,0.115,0.299,0.121,[0.223,0.038,-0.011,0.974],0.36,0.36,0.3,0],[-0.624,0.793,-0.331,0.109,0.109,0.109,[0.223,0.038,-0.011,0.974],0.62,0.62,0.36,0],[0.61,1.121,-0.173,0.115,0.299,0.121,[0.223,-0.038,0.011,0.974],0.36,0.36,0.3,0],[0.624,0.793,-0.331,0.109,0.109,0.109,[0.223,-0.038,0.011,0.974],0.62,0.62,0.36,0]],[[-0.11,0.32,0.095,0.092,0.268,0.097,[-0.18,0,0,0.984],0.45,0.24,0.12,0],[-0.11,0.076,0.148,0.099,0.055,0.129,[-0.18,0,0,0.984],0.1,0.1,0.1,0],[0.11,0.32,-0.095,0.092,0.268,0.097,[0.18,0,0,0.984],0.45,0.24,0.12,0],[0.11,0.102,-0.217,0.099,0.055,0.129,[0.18,0,0,0.984],0.1,0.1,0.1,0],[0,0.752,-0.169,0.184,0.248,0.11,[-0.366,0,0,0.931],0.14,0.24,0.26,0],[0,1.087,-0.37,0.156,0.156,0.156,[-0.1,0,0,0.995],0.38,0.66,0.28,0],[0.066,1.063,-0.529,0.027,0.02,0.009,[-0.1,0,0,0.995],1,0.18,0.08,1],[-0.066,1.063,-0.529,0.027,0.02,0.009,[-0.1,0,0,0.995],1,0.18,0.08,1],[0,0.963,-0.509,0.055,0.011,0.009,[-0.1,0,0,0.995],0.3,0.05,0.05,0],[-0.269,0.503,-0.284,0.064,0.386,0.068,[-0.015,0.03,-0.027,0.999],0.38,0.66,0.28,0],[-0.291,0.08,-0.271,0.061,0.061,0.061,[-0.015,0.03,-0.027,0.999],0.38,0.66,0.28,0],[-0.334,0.003,-0.266,0.011,0.034,0.011,[-0.015,0.03,-0.027,0.999],0.85,0.82,0.7,0],[-0.295,0.001,-0.268,0.011,0.034,0.011,[-0.015,0.03,-0.027,0.999],0.85,0.82,0.7,0],[-0.257,-0.001,-0.271,0.011,0.034,0.011,[-0.015,0.03,-0.027,0.999],0.85,0.82,0.7,0],[0.269,0.503,-0.284,0.064,0.386,0.068,[-0.015,-0.03,0.027,0.999],0.38,0.66,0.28,0],[0.291,0.08,-0.271,0.061,0.061,0.061,[-0.015,-0.03,0.027,0.999],0.38,0.66,0.28,0],[0.257,-0.001,-0.271,0.011,0.034,0.011,[-0.015,-0.03,0.027,0.999],0.85,0.82,0.7,0],[0.295,0.001,-0.268,0.011,0.034,0.011,[-0.015,-0.03,0.027,0.999],0.85,0.82,0.7,0],[0.334,0.003,-0.266,0.011,0.034,0.011,[-0.015,-0.03,0.027,0.999],0.85,0.82,0.7,0]],[[-0.108,0.521,0.155,0.086,0.437,0.091,[-0.18,0,0,0.984],0.2,0.15,0.12,0],[-0.108,0.106,0.266,0.093,0.065,0.121,[-0.18,0,0,0.984],0.1,0.08,0.07,0],[0.108,0.521,-0.155,0.086,0.437,0.091,[0.18,0,0,0.984],0.2,0.15,0.12,0],[0.108,0.136,-0.347,0.093,0.065,0.121,[0.18,0,0,0.984],0.1,0.08,0.07,0],[0,1.272,-0.041,0.205,0.346,0.13,[-0.06,0,0,0.998],0.24,0.17,0.12,0],[0,1.788,-0.074,0.173,0.173,0.173,[0.026,0,0,1],0.55,0.47,0.58,0],[0.073,1.805,-0.251,0.029,0.022,0.011,[0.026,0,0,1],1,0.18,0.08,1],[-0.073,1.805,-0.251,0.029,0.022,0.011,[0.026,0,0,1],1,0.18,0.08,1],[0,1.693,-0.257,0.06,0.012,0.011,[0.026,0,0,1],0.3,0.05,0.05,0],[-0.311,1.4,-0.438,0.076,0.389,0.079,[0.577,0.03,-0.027,0.816],0.24,0.17,0.12,0],[-0.345,1.255,-0.843,0.072,0.072,0.072,[0.577,0.03,-0.027,0.816],0.55,0.47,0.58,0],[0.306,1.421,-0.377,0.065,0.324,0.065,[0.577,-0.03,0.027,0.816],0.45,0.13,0.17,0],[0.351,1.172,-0.917,0.054,0.302,0.054,[0.577,-0.03,0.027,0.816],0.5,0.15,0.18,0],[0.384,0.957,-1.297,0.043,0.151,0.043,[0.577,-0.03,0.027,0.816],0.55,0.18,0.2,0]],[[-0.262,0.647,0.192,0.228,0.543,0.239,[-0.18,0,0,0.984],0.22,0.2,0.26,0],[-0.262,0.148,0.307,0.246,0.105,0.319,[-0.18,0,0,0.984],0.2,0.17,0.2,0],[0.263,0.647,-0.192,0.228,0.543,0.239,[0.18,0,0,0.984],0.22,0.2,0.26,0],[0.263,0.198,-0.438,0.246,0.105,0.319,[0.18,0,0,0.984],0.2,0.17,0.2,0],[0,1.715,-0.143,0.63,0.578,0.42,[-0.125,0,0,0.992],0.4,0.34,0.42,0],[-0.473,2.218,-0.271,0.245,0.14,0.298,[-0.125,0,0,0.992],0.86,0.82,0.7,0],[0.473,2.218,-0.271,0.245,0.14,0.298,[-0.125,0,0,0.992],0.86,0.82,0.7,0],[0,1.943,0.286,0.088,0.462,0.088,[-0.125,0,0,0.992],0.86,0.82,0.7,0],[0,2.537,-0.286,0.263,0.263,0.263,[0,0,0,1],0.47,0.41,0.5,0],[0.11,2.55,-0.557,0.045,0.034,0.018,[0,0,0,1],1,0.18,0.08,1],[-0.11,2.55,-0.557,0.045,0.034,0.018,[0,0,0,1],1,0.18,0.08,1],[0,2.379,-0.557,0.092,0.018,0.018,[0,0,0,1],0.3,0.05,0.05,0],[0,2.812,-0.286,0.236,0.032,0.236,[0,0,0,1],0.86,0.82,0.7,0],[-0.91,1.739,-0.826,0.228,0.7,0.239,[0.466,0.03,-0.027,0.884],0.47,0.41,0.5,0],[-0.976,1.243,-1.548,0.298,0.298,0.298,[0.466,0.03,-0.027,0.884],0.47,0.41,0.5,0],[0.91,1.739,-0.826,0.228,0.7,0.239,[0.466,-0.03,0.027,0.884],0.47,0.41,0.5,0],[0.976,1.243,-1.548,0.298,0.298,0.298,[0.466,-0.03,0.027,0.884],0.47,0.41,0.5,0]],[[-0.1,0.437,0.13,0.08,0.367,0.084,[-0.18,0,0,0.984],0.12,0.13,0.22,0],[-0.1,0.093,0.218,0.086,0.06,0.112,[-0.18,0,0,0.984],0.8,0.83,0.88,0],[0.1,0.437,-0.13,0.08,0.367,0.084,[0.18,0,0,0.984],0.12,0.13,0.22,0],[0.1,0.121,-0.293,0.086,0.06,0.112,[0.18,0,0,0.984],0.8,0.83,0.88,0],[0,1.079,-0.03,0.19,0.3,0.12,[-0.05,0,0,0.999],0.12,0.13,0.22,0],[0,0.631,0.015,0.247,0.3,0.168,[-0.05,0,0,0.999],0.12,0.13,0.22,0],[0,1.537,-0.05,0.16,0.16,0.16,[0.03,0,0,1],0.86,0.89,0.93,0],[0.067,1.555,-0.215,0.027,0.021,0.01,[0.03,0,0,1],0.4,1,1,1],[-0.067,1.555,-0.215,0.027,0.021,0.01,[0.03,0,0,1],0.4,1,1,1],[0,1.451,-0.221,0.056,0.011,0.01,[0.03,0,0,1],0.3,0.05,0.05,0],[-0.28,1.19,-0.414,0.06,0.38,0.063,[0.593,0.03,-0.027,0.804],0.86,0.89,0.93,0],[-0.312,1.067,-0.809,0.057,0.057,0.057,[0.593,0.03,-0.027,0.804],0.86,0.89,0.93,0],[-0.354,1.046,-0.876,0.012,0.031,0.012,[0.593,0.03,-0.027,0.804],0.85,0.82,0.7,0],[-0.318,1.046,-0.879,0.012,0.031,0.012,[0.593,0.03,-0.027,0.804],0.85,0.82,0.7,0],[-0.282,1.045,-0.882,0.012,0.031,0.012,[0.593,0.03,-0.027,0.804],0.85,0.82,0.7,0],[0.28,1.19,-0.414,0.06,0.38,0.063,[0.593,-0.03,0.027,0.804],0.86,0.89,0.93,0],[0.312,1.067,-0.809,0.057,0.057,0.057,[0.593,-0.03,0.027,0.804],0.86,0.89,0.93,0],[0.282,1.045,-0.882,0.012,0.031,0.012,[0.593,-0.03,0.027,0.804],0.85,0.82,0.7,0],[0.318,1.046,-0.879,0.012,0.031,0.012,[0.593,-0.03,0.027,0.804],0.85,0.82,0.7,0],[0.354,1.046,-0.876,0.012,0.031,0.012,[0.593,-0.03,0.027,0.804],0.85,0.82,0.7,0]],[[-0.12,0.392,0.117,0.1,0.329,0.105,[-0.18,0,0,0.984],0.24,0.22,0.16,0],[-0.12,0.087,0.189,0.108,0.06,0.14,[-0.18,0,0,0.984],0.12,0.12,0.1,0],[0.12,0.392,-0.117,0.1,0.329,0.105,[0.18,0,0,0.984],0.24,0.22,0.16,0],[0.12,0.116,-0.264,0.108,0.06,0.14,[0.18,0,0,0.984],0.12,0.12,0.1,0],[0,0.952,-0.122,0.24,0.28,0.15,[-0.223,0,0,0.975],0.3,0.3,0.2,0],[0,1.12,0.097,0.17,0.2,0.13,[-0.223,0,0,0.975],0.45,0.95,0.2,1],[0,1.364,-0.256,0.16,0.16,0.16,[-0.04,0,0,0.999],0.5,0.55,0.3,0],[0.067,1.359,-0.421,0.027,0.021,0.01,[-0.04,0,0,0.999],0.85,0.95,0.25,1],[-0.067,1.359,-0.421,0.027,0.021,0.01,[-0.04,0,0,0.999],0.85,0.95,0.25,1],[0,1.255,-0.413,0.056,0.011,0.01,[-0.04,0,0,0.999],0.3,0.05,0.05,0],[-0.342,0.872,-0.385,0.08,0.32,0.084,[0.281,0.03,-0.027,0.959],0.3,0.3,0.2,0],[-0.367,0.565,-0.582,0.076,0.076,0.076,[0.281,0.03,-0.027,0.959],0.5,0.55,0.3,0],[0.342,0.872,-0.385,0.08,0.32,0.084,[0.281,-0.03,0.027,0.959],0.3,0.3,0.2,0],[0.367,0.565,-0.582,0.076,0.076,0.076,[0.281,-0.03,0.027,0.959],0.5,0.55,0.3,0]],[[-0.175,0.462,0.137,0.15,0.388,0.158,[-0.18,0,0,0.984],0.2,0.17,0.15,0],[-0.175,0.106,0.219,0.162,0.075,0.21,[-0.18,0,0,0.984],0.14,0.12,0.1,0],[0.175,0.462,-0.137,0.15,0.388,0.158,[0.18,0,0,0.984],0.2,0.17,0.15,0],[0.175,0.141,-0.313,0.162,0.075,0.21,[0.18,0,0,0.984],0.14,0.12,0.1,0],[0,1.145,-0.196,0.375,0.375,0.25,[-0.272,0,0,0.962],0.42,0.24,0.2,0],[0,1.57,-0.576,0.213,0.213,0.213,[-0.501,0,0,0.865],0.58,0.32,0.27,0],[0.089,1.386,-0.694,0.036,0.028,0.013,[-0.501,0,0,0.865],1,0.18,0.08,1],[-0.089,1.386,-0.694,0.036,0.028,0.013,[-0.501,0,0,0.865],1,0.18,0.08,1],[0,1.317,-0.575,0.074,0.015,0.013,[-0.501,0,0,0.865],0.3,0.05,0.05,0],[0,1.56,-0.729,0.266,0.096,0.287,[-0.501,0,0,0.865],0.86,0.82,0.7,0],[0,1.335,-0.785,0.191,0.117,0.064,[-0.501,0,0,0.865],0.86,0.82,0.7,0],[-0.538,1.012,-0.487,0.138,0.4,0.144,[0.184,0.03,-0.027,0.982],0.42,0.24,0.2,0],[-0.568,0.567,-0.659,0.131,0.131,0.131,[0.184,0.03,-0.027,0.982],0.58,0.32,0.27,0],[0.538,1.012,-0.487,0.138,0.4,0.144,[0.184,-0.03,0.027,0.982],0.42,0.24,0.2,0],[0.568,0.567,-0.659,0.131,0.131,0.131,[0.184,-0.03,0.027,0.982],0.58,0.32,0.27,0]],[[-0.075,0.236,0.07,0.054,0.198,0.057,[-0.18,0,0,0.984],0.24,0.2,0.3,0],[-0.075,0.056,0.11,0.059,0.041,0.076,[-0.18,0,0,0.984],0.5,0.45,0.5,0],[0.075,0.236,-0.07,0.054,0.198,0.057,[0.18,0,0,0.984],0.24,0.2,0.3,0],[0.075,0.075,-0.16,0.059,0.041,0.076,[0.18,0,0,0.984],0.5,0.45,0.5,0],[0,0.565,-0.078,0.129,0.163,0.082,[-0.247,0,0,0.969],0.32,0.3,0.36,0],[0,0.843,-0.17,0.136,0.136,0.136,[-0.05,0,0,0.999],0.6,0.55,0.62,0],[0.057,0.836,-0.309,0.023,0.018,0.007,[-0.05,0,0,0.999],1,0.18,0.08,1],[-0.057,0.836,-0.309,0.023,0.018,0.007,[-0.05,0,0,0.999],1,0.18,0.08,1],[0,0.755,-0.301,0.088,0.014,0.007,[-0.05,0,0,0.999],0.92,0.9,0.8,0],[-0.196,0.418,-0.266,0.048,0.286,0.05,[0.233,0.03,-0.027,0.972],0.6,0.55,0.62,0],[-0.216,0.14,-0.407,0.045,0.045,0.045,[0.233,0.03,-0.027,0.972],0.6,0.55,0.62,0],[-0.249,0.088,-0.431,0.008,0.025,0.008,[0.233,0.03,-0.027,0.972],0.85,0.82,0.7,0],[-0.22,0.087,-0.433,0.008,0.025,0.008,[0.233,0.03,-0.027,0.972],0.85,0.82,0.7,0],[-0.192,0.086,-0.435,0.008,0.025,0.008,[0.233,0.03,-0.027,0.972],0.85,0.82,0.7,0],[0.196,0.418,-0.266,0.048,0.286,0.05,[0.233,-0.03,0.027,0.972],0.6,0.55,0.62,0],[0.216,0.14,-0.407,0.045,0.045,0.045,[0.233,-0.03,0.027,0.972],0.6,0.55,0.62,0],[0.192,0.086,-0.435,0.008,0.025,0.008,[0.233,-0.03,0.027,0.972],0.85,0.82,0.7,0],[0.22,0.087,-0.433,0.008,0.025,0.008,[0.233,-0.03,0.027,0.972],0.85,0.82,0.7,0],[0.249,0.088,-0.431,0.008,0.025,0.008,[0.233,-0.03,0.027,0.972],0.85,0.82,0.7,0]]],"heli":[[0,1.3,0.1,1,0.85,2.2,[0,0,0,1],0.3,0.35,0.25,0],[0,1.5,-2.05,0.86,0.6,0.62,[0,0,0,1],0.12,0.2,0.28,1],[0,1.05,-2.75,0.72,0.5,0.45,[0,0,0,1],0.3,0.35,0.25,0],[0,1.65,3.6,0.32,0.32,1.8,[0,0,0,1],0.3,0.35,0.25,0],[0,1.75,5.8,0.24,0.26,0.6,[0,0,0,1],0.3,0.35,0.25,0],[0,2.45,6.1,0.09,0.75,0.5,[0,0,0,1],0.3,0.35,0.25,0],[0,1.66,3.3,0.33,0.12,0.5,[0,0,0,1],0.18,0.36,0.9,0],[0,2.28,0,0.32,0.2,0.6,[0,0,0,1],0.16,0.18,0.15,0],[0,2.5,0,0.12,0.12,0.12,[0,0,0,1],0.35,0.36,0.37,0],[-0.95,0.1,0.1,0.07,0.07,2.2,[0,0,0,1],0.16,0.18,0.15,0],[-0.9,0.45,-1.1,0.05,0.35,0.05,[0,0,0,1],0.16,0.18,0.15,0],[-0.9,0.45,1.2,0.05,0.35,0.05,[0,0,0,1],0.16,0.18,0.15,0],[-1.45,1.05,0.3,0.5,0.08,0.45,[0,0,0,1],0.3,0.35,0.25,0],[-1.85,0.86,-0.25,0.08,0.08,0.65,[0,0,0,1],0.16,0.18,0.15,0],[-1.4,0.72,0.35,0.2,0.2,0.6,[0,0,0,1],0.24,0.27,0.2,0],[0.95,0.1,0.1,0.07,0.07,2.2,[0,0,0,1],0.16,0.18,0.15,0],[0.9,0.45,-1.1,0.05,0.35,0.05,[0,0,0,1],0.16,0.18,0.15,0],[0.9,0.45,1.2,0.05,0.35,0.05,[0,0,0,1],0.16,0.18,0.15,0],[1.45,1.05,0.3,0.5,0.08,0.45,[0,0,0,1],0.3,0.35,0.25,0],[1.85,0.86,-0.25,0.08,0.08,0.65,[0,0,0,1],0.16,0.18,0.15,0],[1.4,0.72,0.35,0.2,0.2,0.6,[0,0,0,1],0.24,0.27,0.2,0],[0,2.62,0,0.16,0.03,5.6,[0,0.174,0,0.985],0.16,0.18,0.15,0],[0,2.62,0,5.6,0.03,0.16,[0,0.174,0,0.985],0.16,0.18,0.15,0],[0.3,2.4,6.3,0.03,0.95,0.09,[0.293,0,0,0.956],0.16,0.18,0.15,0],[0.3,2.4,6.3,0.03,0.09,0.95,[0.293,0,0,0.956],0.16,0.18,0.15,0]],"jet":[[0,1.2,0,0.62,0.6,4.6,[0,0,0,1],0.5,0.54,0.58,0],[0,1.15,-5.1,0.42,0.42,0.7,[0,0,0,1],0.5,0.54,0.58,0],[0,1.12,-6,0.22,0.22,0.35,[0,0,0,1],0.2,0.21,0.23,0],[0,1.82,-2.6,0.38,0.32,1.2,[0,0,0,1],0.12,0.16,0.24,1],[-1.8,1,1.2,1.25,0.1,1.6,[0,0,0,1],0.5,0.54,0.58,0],[-3.8,1,1.9,0.9,0.08,0.9,[0,0,0,1],0.5,0.54,0.58,0],[-4.75,1,2.1,0.08,0.12,0.6,[0,0,0,1],0.2,0.21,0.23,0],[-3.4,1.11,1.6,0.38,0.02,0.38,[0,0,0,1],0.18,0.36,0.9,0],[-1.6,1.25,4.6,0.95,0.07,0.6,[0,0,0,1],0.5,0.54,0.58,0],[-0.78,1,-1.4,0.24,0.36,1.1,[0,0,0,1],0.5,0.54,0.58,0],[-0.62,2.15,4.4,0.07,0.85,0.75,[0,0,0.11,0.994],0.5,0.54,0.58,0],[-0.34,1.1,4.9,0.28,0.3,0.35,[0,0,0,1],0.2,0.21,0.23,0],[-0.34,1.1,5.5,0.2,0.2,0.35,[0,0,0,1],1,0.55,0.2,1],[-1.2,0.32,1,0.15,0.32,0.2,[0,0,0,1],0.2,0.21,0.23,0],[1.8,1,1.2,1.25,0.1,1.6,[0,0,0,1],0.5,0.54,0.58,0],[3.8,1,1.9,0.9,0.08,0.9,[0,0,0,1],0.5,0.54,0.58,0],[4.75,1,2.1,0.08,0.12,0.6,[0,0,0,1],0.2,0.21,0.23,0],[3.4,1.11,1.6,0.38,0.02,0.38,[0,0,0,1],0.18,0.36,0.9,0],[1.6,1.25,4.6,0.95,0.07,0.6,[0,0,0,1],0.5,0.54,0.58,0],[0.78,1,-1.4,0.24,0.36,1.1,[0,0,0,1],0.5,0.54,0.58,0],[0.62,2.15,4.4,0.07,0.85,0.75,[0,0,-0.11,0.994],0.5,0.54,0.58,0],[0.34,1.1,4.9,0.28,0.3,0.35,[0,0,0,1],0.2,0.21,0.23,0],[0.34,1.1,5.5,0.2,0.2,0.35,[0,0,0,1],1,0.55,0.2,1],[1.2,0.32,1,0.15,0.32,0.2,[0,0,0,1],0.2,0.21,0.23,0],[0,0.32,-4.2,0.12,0.32,0.14,[0,0,0,1],0.2,0.21,0.23,0]],"player":[[-0.12,0.447,0.098,0.115,0.29,0.125,[-0.172,0,0,0.985],0.22,0.27,0.35,0],[-0.12,0.106,0.184,0.125,0.085,0.16,[-0.172,0,0,0.985],0.12,0.12,0.13,0],[0.12,0.447,-0.098,0.115,0.29,0.125,[0.172,0,0,0.985],0.22,0.27,0.35,0],[0.12,0.13,-0.249,0.125,0.085,0.16,[0.172,0,0,0.985],0.12,0.12,0.13,0],[0,1.05,0,0.24,0.33,0.135,[0,0,0,1],0.27,0.33,0.42,0],[0,1.1,0,0.255,0.22,0.155,[0,0,0,1],0.2,0.24,0.3,0],[0,0.78,0,0.25,0.04,0.145,[0,0,0,1],0.15,0.14,0.12,0],[0,1.58,0,0.2,0.2,0.2,[0,0,0,1],0.87,0.7,0.57,0],[0,1.735,0.01,0.228,0.095,0.228,[0,0,0,1],0.24,0.3,0.38,0],[0,1.65,-0.226,0.228,0.022,0.025,[0,0,0,1],0.24,0.3,0.38,0],[0.08,1.57,-0.201,0.035,0.028,0.01,[0,0,0,1],0.08,0.08,0.09,0],[-0.08,1.57,-0.201,0.035,0.028,0.01,[0,0,0,1],0.08,0.08,0.09,0],[0,1.45,-0.201,0.06,0.015,0.01,[0,0,0,1],0.609,0.42,0.342,0],[0.298,1.32,-0.268,0.095,0.3,0.1,[0.706,0.042,-0.042,0.706],0.27,0.33,0.42,0],[-0.177,1.32,-0.281,0.095,0.34,0.1,[0.685,-0.175,0.175,0.685],0.27,0.33,0.42,0],[-0.272,1.32,-0.105,0.1,0.05,0.105,[0.685,-0.175,0.175,0.685],0.18,0.4,0.95,0],[0.1,1.27,-0.53,0.04,0.065,0.42,[0,0,0,1],0.13,0.13,0.14,0],[0.1,1.17,-0.5,0.03,0.065,0.05,[0,0,0,1],0.13,0.13,0.14,0]]};
+const GUNS = [
+  { id: 'ar', name: 'AR-7 Rifle', rpm: 680, auto: true, len: 260, about: 'The all-round assault rifle.' },
+  { id: 'smg', name: 'SM-9 Carbine', rpm: 900, auto: true, len: 190, about: 'Fast and light; you can carry two.' },
+  { id: 'dmr', name: 'DM-4 Marksman', rpm: 200, auto: false, len: 520, about: 'The sniper: one hard crack per shot.' },
+  { id: 'pistol', name: 'P-12 Pistol', rpm: 420, auto: false, len: 220, about: 'The sidearm (and the only gun in fight mode).' },
+  { id: 'mini', name: 'MG-6 Minigun', rpm: 1500, auto: true, len: 140, about: 'Spinning barrels, a wall of bullets.' },
+  { id: 'rpg', name: 'RL-1 Launcher', rpm: 50, auto: false, len: 900, about: 'Rocket launcher: the launch whoosh.' },
+  { id: 'nap', name: 'NP-2 Napalm', rpm: 40, auto: false, len: 900, about: 'Fire rocket launcher.' },
+  { id: 'sword', name: 'Katana', rpm: 110, auto: false, len: 420, about: 'A swing through the air.', verb: 'Swing' },
+  { id: 'saw', name: 'Chainsaw', rpm: 600, auto: true, len: 300, about: 'Hold to keep it running.', verb: 'Run' },
+];
+const ZOMBIES = [
+  { name: 'Zombie', about: 'The ordinary walker.', act: 'When it dies' },
+  { name: 'Bloater', about: 'Round and full of bile.', act: 'When it sprays bile' },
+  { name: 'Leaper', about: 'Low, fast, jumps at you.', act: 'As it jumps' },
+  { name: 'Lasher', about: 'Tall, with a tendril arm.', act: 'As it lashes out' },
+  { name: 'Brute', about: 'Huge fists, throws rubble.', act: 'When it attacks or throws' },
+  { name: 'Wailer', about: 'Sits and sobs; do not wake her.', act: 'When she is woken' },
+  { name: 'Spewer', about: 'Spits acid from its back sac.', act: 'Before it spits' },
+  { name: 'Rammer', about: 'Head down, charges.', act: 'As it charges' },
+  { name: 'Rider', about: 'Jumps on your head.', act: 'When it is on your head' },
+];
+const VEHICLE_GUNS = [
+  { id: 'heli_gun', model: 'heli', name: 'Helicopter guns', rpm: 1090, auto: true, len: 150, about: 'The chain guns under the helicopter.' },
+  { id: 'heli_rkt', model: 'heli', name: 'Helicopter rockets', rpm: 86, auto: false, len: 900, about: 'A rocket leaving the pod.', label: 'Launch sound' },
+  { id: 'jet_gun', model: 'jet', name: 'Jet cannons', rpm: 1090, auto: true, len: 150, about: 'The nose cannons of the jet.' },
+  { id: 'jet_rkt', model: 'jet', name: 'Jet rockets', rpm: 86, auto: false, len: 900, about: 'A rocket from under the wing.', label: 'Launch sound' },
+];
+const ZSLOTS = [['Around you 1', 'idle'], ['Around you 2', 'idle'], ['Around you 3', 'idle'], ['', 'act']];
+const SR = 22050;
+
+// ---------------------------------------------------------------- the model drawings (boxes from the game itself)
+function qrot(q, v) {
+  const [x, y, z] = v, [qx, qy, qz, qw] = q;
+  const ix = qw * x + qy * z - qz * y, iy = qw * y + qz * x - qx * z, iz = qw * z + qx * y - qy * x, iw = -qx * x - qy * y - qz * z;
+  return [ix * qw - iw * qx - iy * qz + iz * qy, iy * qw - iw * qy - iz * qx + ix * qz, iz * qw - iw * qz - ix * qy + iy * qx];
+}
+const FACES = [[0, 2, 6, 4, [-1, 0, 0]], [1, 3, 7, 5, [1, 0, 0]], [0, 1, 5, 4, [0, -1, 0]], [2, 3, 7, 6, [0, 1, 0]], [0, 1, 3, 2, [0, 0, -1]], [4, 5, 7, 6, [0, 0, 1]]];
+function drawModel(cv, boxes, yaw, pitch) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const x = cv.getContext('2d'); x.clearRect(0, 0, W, H);
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const view = v => { const X = v[0] * cy + v[2] * sy, Z = -v[0] * sy + v[2] * cy, Y = v[1]; return [X, Y * cp - Z * sp, Y * sp + Z * cp]; };
+  const L = [-0.45, 0.75, 0.5], Ll = Math.hypot(...L);
+  const polys = []; let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const b of boxes) {
+    const q = b[6], c = [b[0], b[1], b[2]], h = [b[3], b[4], b[5]], col = [b[7], b[8], b[9]], em = b[10];
+    const pts = [];
+    for (let i = 0; i < 8; i++) {
+      const o = qrot(q, [(i & 1 ? 1 : -1) * h[0], (i & 2 ? 1 : -1) * h[1], (i & 4 ? 1 : -1) * h[2]]);
+      const p = view([c[0] + o[0], c[1] + o[1], c[2] + o[2]]); pts.push(p);
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+    }
+    for (const f of FACES) {
+      const n = view(qrot(q, f[4]));
+      if (n[2] <= 0.001) continue;
+      const lit = em ? 1.15 : 0.5 + 0.62 * Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / Ll);
+      polys.push({ p: [pts[f[0]], pts[f[1]], pts[f[2]], pts[f[3]]], z: (pts[f[0]][2] + pts[f[1]][2] + pts[f[2]][2] + pts[f[3]][2]) / 4, c: col.map(v => Math.min(255, Math.round(Math.pow(Math.min(1, v * lit), 1 / 1.6) * 255))) });
+    }
+  }
+  polys.sort((a, b) => a.z - b.z);
+  const pad = 0.12, s = Math.min(W * (1 - 2 * pad) / Math.max(1e-3, x1 - x0), H * (1 - 2 * pad) / Math.max(1e-3, y1 - y0));
+  const ox = W / 2 - (x0 + x1) / 2 * s, oy = H / 2 + (y0 + y1) / 2 * s;
+  x.lineJoin = 'round'; x.lineWidth = Math.max(1, dpr * 0.6);
+  for (const P of polys) {
+    x.beginPath(); P.p.forEach((p, i) => { const X = ox + p[0] * s, Y = oy - p[1] * s; i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.closePath();
+    const f = 'rgb(' + P.c.join(',') + ')'; x.fillStyle = f; x.strokeStyle = f; x.fill(); x.stroke();
+  }
+}
+function stage(boxes, yaw, pitch) {
+  const el = document.createElement('div'); el.className = 'stage';
+  const cv = document.createElement('canvas'); el.appendChild(cv);
+  const hint = document.createElement('div'); hint.className = 'hint'; hint.textContent = 'drag to turn'; el.appendChild(hint);
+  let a = yaw, down = null;
+  const draw = () => drawModel(cv, boxes, a, pitch);
+  el.addEventListener('pointerdown', e => { down = e.clientX; el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove', e => { if (down === null) return; a += (e.clientX - down) * 0.012; down = e.clientX; draw(); });
+  const up = () => { down = null; }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  new ResizeObserver(draw).observe(el);
+  return el;
+}
+
+// ---------------------------------------------------------------- sound
+let AC = null;
+const ac = () => { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); return AC; };
+async function toMono22k(arrayBuf) {
+  const a = ac(), b = await new Promise((res, rej) => { const p = a.decodeAudioData(arrayBuf, res, rej); if (p && p.catch) p.catch(rej); });
+  const n = b.length, m = new Float32Array(n);
+  for (let c = 0; c < b.numberOfChannels; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) m[i] += d[i] / b.numberOfChannels; }
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(n * SR / b.sampleRate)), SR);
+  const mb = off.createBuffer(1, n, b.sampleRate); mb.copyToChannel(m, 0);
+  const src = off.createBufferSource(); src.buffer = mb; src.connect(off.destination); src.start();
+  return (await off.startRendering()).getChannelData(0).slice();
+}
+// cut the silence in front, level the volume, keep at most `maxS` seconds (and for a zombie, drop the silence after it too)
+function prepare(x, maxS, tailCut) {
+  let pk = 0; for (let i = 0; i < x.length; i++) pk = Math.max(pk, Math.abs(x[i]));
+  if (pk < 0.003) return null;
+  const th = Math.max(0.01, pk * 0.12);
+  let s = 0; while (s < x.length && Math.abs(x[s]) < th) s++;
+  s = Math.max(0, s - Math.round(SR * 0.004));
+  let e = Math.min(x.length, s + Math.round(SR * maxS));
+  if (tailCut) { let k = e - 1; while (k > s && Math.abs(x[k]) < th * 0.5) k--; e = Math.min(e, k + Math.round(SR * 0.09)); }
+  const y = x.slice(s, e), g = 0.92 / pk;
+  for (let i = 0; i < y.length; i++) y[i] *= g;
+  const fi = Math.min(y.length, Math.round(SR * 0.002)); for (let i = 0; i < fi; i++) y[i] *= i / fi;
+  return y;
+}
+// the part that is played: for a gun, cut to `lenMs` with a fade-out over the last 35 %
+function cut(raw, lenMs) {
+  const n = lenMs ? Math.min(raw.length, Math.round(SR * lenMs / 1000)) : raw.length, y = raw.slice(0, n);
+  const F = lenMs ? Math.max(1, Math.round(n * 0.35)) : Math.min(n, Math.round(SR * 0.05));
+  for (let i = 0; i < F; i++) { const k = n - F + i, t = 1 - i / F; y[k] *= t * t; }
+  return y;
+}
+function buf(y) { const b = ac().createBuffer(1, Math.max(1, y.length), SR); b.copyToChannel(y, 0); return b; }
+function playAt(b, when, rate, gain) {
+  const a = ac(), s = a.createBufferSource(), g = a.createGain();
+  s.buffer = b; s.playbackRate.value = rate || 1; g.gain.value = gain == null ? 1 : gain;
+  s.connect(g).connect(a.destination); s.start(when || 0); return s;
+}
+function drawWave(cv, y, mark) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+  const x = cv.getContext('2d'), W = cv.width, H = cv.height; x.clearRect(0, 0, W, H);
+  if (!y || !y.length) return;
+  x.fillStyle = '#d9ad4f';
+  const step = y.length / W;
+  for (let i = 0; i < W; i++) { let m = 0; const a = Math.floor(i * step), b = Math.floor((i + 1) * step); for (let k = a; k < b && k < y.length; k++) m = Math.max(m, Math.abs(y[k])); const h = Math.max(1, m * H * 0.92); x.fillRect(i, (H - h) / 2, 1, h); }
+  if (mark != null && mark < y.length) { x.fillStyle = 'rgba(226,85,63,.9)'; x.fillRect(Math.round(mark / step), 0, Math.max(1, dpr), H); x.fillStyle = 'rgba(21,23,15,.6)'; x.fillRect(Math.round(mark / step) + 1, 0, W, H); }
+}
+
+// ---------------------------------------------------------------- shared store (Firebase): everyone's entries and votes, no account needed
+// entries/<person>_<sound>  {slot, name, uid, at, len}      who sent in what (small, read live)
+// audio/<person>_<sound>    {pcm16, len, rate, uid}           the sound itself (fetched when played)
+// votes/<person>_<sound>    {slot, to, uid, at}               one favourite per sound per person
+// Everyone gets an anonymous id on their phone automatically; Ruben signs in with Google to remove entries.
+let fs = null, auth = null, me = null, isOwner = false, canWrite = true;
+const people = new Map(), votes = new Map(), drafts = {}, soundCache = new Map(), renderers = {}, titles = {};
+function toB64(y) {
+  const i16 = new Int16Array(y.length); for (let i = 0; i < y.length; i++) i16[i] = Math.max(-32767, Math.min(32767, Math.round(y[i] * 32767)));
+  const u8 = new Uint8Array(i16.buffer); let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function fromB64(b) {
+  const s = atob(b), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+  const i16 = new Int16Array(u8.buffer, 0, u8.length >> 1), y = new Float32Array(i16.length); for (let i = 0; i < y.length; i++) y[i] = i16[i] / 32767;
+  return y;
+}
+const statusEl = document.getElementById('status');
+function setStatus(html, warn) { statusEl.innerHTML = html; statusEl.classList.toggle('warn', !!warn); }
+let tt = 0;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => { t.hidden = true; }, 2800); }
+const nameIn = document.getElementById('myName');
+try { nameIn.value = localStorage.getItem('booth.name') || ''; } catch (e) { /* ignore */ }
+nameIn.addEventListener('change', async () => {
+  const n = nameIn.value.trim().slice(0, 24); nameIn.value = n;
+  try { localStorage.setItem('booth.name', n); } catch (e) { /* ignore */ }
+  const mine = me && people.get(me);
+  if (mine && n && fs) for (const key of Object.keys(mine.slots || {})) try { await fs.collection('entries').doc(me + '_' + key).update({ name: n }); } catch (e) { /* ignore */ }
+});
+function whyNot(e) {
+  const c = e && e.code;
+  if (c === 'permission-denied') return 'That was refused. Reload the page and try again.';
+  if (c === 'unavailable') return 'No connection right now. Try again in a moment.';
+  return 'That did not go through (' + (c || 'error') + '). Try again in a moment.';
+}
+const notReady = () => { if (!fs || !me) { toast('Still connecting… try again in a second'); return true; } return false; };
+async function submit(key, meta) {
+  const d = drafts[key]; if (!d) return;
+  const n = nameIn.value.trim();
+  if (!n) { toast('Type your name at the top first'); nameIn.focus(); return; }
+  if (notReady()) return;
+  const id = me + '_' + key, at = Date.now();
+  try {
+    await fs.collection('audio').doc(id).set({ pcm16: toB64(d.raw), len: d.len || 0, rate: SR, uid: me });
+    await fs.collection('entries').doc(id).set({ slot: key, name: n, uid: me, at, len: d.len || 0 });
+    delete drafts[key]; toast('Sent in. Everyone can hear it and vote now.'); renderers[key] && renderers[key]();
+  } catch (e) { toast(whyNot(e)); }
+}
+async function removeEntry(uid, key) {
+  if (notReady()) return;
+  const id = uid + '_' + key;
+  try { await fs.collection('entries').doc(id).delete(); await fs.collection('audio').doc(id).delete(); toast('Removed'); }
+  catch (e) { toast(whyNot(e)); }
+}
+async function vote(key, uid) {
+  if (notReady()) return;
+  const ref = fs.collection('votes').doc(me + '_' + key), cur = (votes.get(me) || { v: {} }).v[key];
+  try { if (cur === uid) await ref.delete(); else await ref.set({ slot: key, to: uid, uid: me, at: Date.now() }); }
+  catch (e) { toast(whyNot(e)); }
+}
+function loadSound(uid, key) {
+  const at = ((people.get(uid) || {}).slots || {})[key], ck = uid + '/' + key + '@' + at;
+  if (!soundCache.has(ck)) soundCache.set(ck, fs.collection('audio').doc(uid + '_' + key).get().then(s => { const v = s.exists ? s.data() : null; if (!v || !v.pcm16) throw new Error('gone'); return { raw: fromB64(v.pcm16), len: v.len || 0 }; }).catch(e => { soundCache.delete(ck); throw e; }));
+  return soundCache.get(ck);
+}
+// the entries for one sound, most votes first
+function entries(key) {
+  const out = [];
+  for (const [uid, p] of people) if (p.slots && p.slots[key]) {
+    let n = 0, mineV = false;
+    for (const [vid, vv] of votes) if (vv.v && vv.v[key] === uid) { n++; if (vid === me) mineV = true; }
+    out.push({ uid, name: p.names[key] || p.name || 'Someone', n, mineV, at: p.slots[key] });
+  }
+  return out.sort((a, b) => b.n - a.n || a.at - b.at);
+}
+// ---------------------------------------------------------------- recording: the microphone here if allowed, else the phone's own recorder / a file
+const pick = document.getElementById('pick');
+let micBlocked = !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder), rec = null, pickCb = null;
+pick.addEventListener('change', async () => {
+  const f = pick.files && pick.files[0]; pick.value = ''; const cb = pickCb; pickCb = null;
+  if (!f || !cb) return;
+  try { cb(await toMono22k(await f.arrayBuffer())); } catch (e) { toast('This file could not be read. Try an .m4a, .mp3 or .wav recording.'); }
+});
+async function record(btn, done) {
+  ac();
+  if (rec) { rec.stop(); return; }
+  if (!micBlocked) {
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      const parts = [], mr = new MediaRecorder(st); rec = mr;
+      btn.classList.add('on'); btn.textContent = 'Stop';
+      mr.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
+      mr.onstop = async () => {
+        st.getTracks().forEach(t => t.stop()); rec = null; btn.classList.remove('on'); btn.textContent = 'Record';
+        try { done(await toMono22k(await new Blob(parts, { type: mr.mimeType }).arrayBuffer())); } catch (e) { toast('That recording could not be read.'); }
+      };
+      mr.start(); setTimeout(() => { if (rec === mr) mr.stop(); }, 6000);
+      return;
+    } catch (e) { micBlocked = true; }
+  }
+  pickCb = done; pick.click();
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function btn(cls, text) { const b = el('button', 'btn' + (cls ? ' ' + cls : ''), text); b.type = 'button'; return b; }
+// hold a button: the sound again and again at the real fire rate, each shot a little different (as in the game)
+function holdFire(b, getBuf, rpm) {
+  let timer = 0, next = 0, live = false;
+  const stop = () => { live = false; if (timer) clearInterval(timer); timer = 0; b.classList.remove('on'); };
+  b.addEventListener('pointerdown', async e => {
+    e.preventDefault(); if (timer || live) return; live = true; b.classList.add('on');
+    let B; try { B = await getBuf(); } catch (er) { stop(); toast('Could not load that sound'); return; }
+    if (!live || !B) { stop(); return; }
+    const a = ac(), iv = 60 / rpm; next = a.currentTime + 0.02;
+    const tick = () => { while (next < a.currentTime + 0.12) { playAt(B, next, 1 + (Math.random() - 0.5) * 0.07, 0.8 + Math.random() * 0.2); next += iv; } };
+    tick(); timer = setInterval(tick, 25);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, stop));
+  b.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+// ---------------------------------------------------------------- one sound slot: your own try (record, cut, listen, send in) and everyone's entries with votes
+function makeSlot(parent, key, o) {
+  titles[key] = o.title;
+  const slot = el('div', 'slot');
+  const lab = el('div', 'lab'); lab.appendChild(el('span', null, o.label)); const cnt = el('span', null, ''); lab.appendChild(cnt); slot.appendChild(lab);
+  const list = el('div', 'entries'); slot.appendChild(list);
+  const mineBox = el('div', 'mine'); slot.appendChild(mineBox);
+  mineBox.appendChild(el('div', 'mineh', 'Your try'));
+  const wave = el('canvas', 'wave'); mineBox.appendChild(wave);
+  let rng = null, outp = null;
+  if (o.gun) {
+    const len = el('label', 'len'); len.appendChild(el('span', null, 'Length'));
+    rng = el('input'); rng.type = 'range'; rng.min = 60; rng.max = 1500; rng.step = 10; rng.value = o.gun.len; rng.id = 'len_' + key;
+    outp = el('output', null, o.gun.len + ' ms'); len.appendChild(rng); len.appendChild(outp); mineBox.appendChild(len);
+  }
+  const row = el('div', 'row'), bRec = btn('rec', 'Record'), bOne = btn('', o.gun ? 'Once' : 'Play'), bSend = btn('send', 'Send in');
+  row.appendChild(bRec); row.appendChild(bOne);
+  let bHold = null; if (o.gun) { bHold = btn('fire', 'Hold: ' + (o.gun.verb || 'Fire')); row.appendChild(bHold); }
+  row.appendChild(bSend); mineBox.appendChild(row);
+  const draftBuf = () => { const d = drafts[key]; return d ? buf(cut(d.raw, d.len)) : null; };
+  const drawMine = () => { const d = drafts[key]; bOne.disabled = bSend.disabled = !d; if (bHold) bHold.disabled = !d; if (rng) rng.disabled = !d;
+    drawWave(wave, d ? d.raw : null, d && d.len ? Math.round(SR * d.len / 1000) : null); };
+  bRec.addEventListener('click', () => record(bRec, y => {
+    const raw = prepare(y, o.gun ? 1.5 : 2.5, !o.gun); if (!raw) { toast('That was silent. Try again a bit closer.'); return; }
+    drafts[key] = o.gun ? { raw, len: Math.min(+rng.value, Math.round(raw.length / SR * 1000)) } : { raw: cut(raw, 0), len: 0 };
+    if (rng) { rng.value = drafts[key].len; outp.textContent = drafts[key].len + ' ms'; }
+    drawMine(); playAt(draftBuf());
+  }));
+  bOne.addEventListener('click', () => { const b = draftBuf(); if (b) playAt(b); });
+  if (rng) {
+    rng.addEventListener('input', () => { outp.textContent = rng.value + ' ms'; const d = drafts[key]; if (d) { d.len = +rng.value; drawMine(); } });
+    rng.addEventListener('change', () => { const b = draftBuf(); if (b) playAt(b); });
+  }
+  if (bHold) holdFire(bHold, async () => draftBuf(), o.gun.rpm);
+  bSend.addEventListener('click', () => submit(key, o.meta));
+  const render = () => {
+    const es = entries(key);
+    cnt.textContent = es.length ? es.length + (es.length === 1 ? ' entry' : ' entries') : 'no entries yet';
+    list.replaceChildren();
+    es.forEach((e, i) => {
+      const r = el('div', 'entry' + (i === 0 && e.n > 0 ? ' lead' : ''));
+      const who = el('div', 'who'); who.appendChild(el('span', 'nm', e.name + (e.uid === me ? ' (you)' : ''))); if (i === 0 && e.n > 0) who.appendChild(el('span', 'tag', 'Leading'));
+      r.appendChild(who);
+      const acts = el('div', 'row');
+      const bP = btn('', o.gun ? 'Once' : 'Play');
+      bP.addEventListener('click', async () => { try { const s = await loadSound(e.uid, key); playAt(buf(cut(s.raw, s.len))); } catch (er) { toast('Could not load that sound'); } });
+      acts.appendChild(bP);
+      if (o.gun) { const bH = btn('fire small', 'Hold'); holdFire(bH, async () => { const s = await loadSound(e.uid, key); return buf(cut(s.raw, s.len)); }, o.gun.rpm); acts.appendChild(bH); }
+      const bV = btn('vote' + (e.mineV ? ' on' : ''), (e.mineV ? '★ ' : '☆ ') + e.n);
+      bV.setAttribute('aria-label', (e.mineV ? 'Remove your vote for ' : 'Vote for ') + e.name + ', ' + e.n + ' votes');
+      bV.addEventListener('click', () => vote(key, e.uid)); acts.appendChild(bV);
+      if (e.uid === me || isOwner) { const bX = btn('x', 'Remove'); bX.addEventListener('click', () => removeEntry(e.uid, key)); acts.appendChild(bX); }
+      r.appendChild(acts); list.appendChild(r);
+    });
+    drawMine();
+  };
+  renderers[key] = render; render();
+  parent.appendChild(slot);
+  return render;
+}
+
+// ---------------------------------------------------------------- the cards
+const gunsEl = document.getElementById('guns'), zEl = document.getElementById('zombies'), youEl = document.getElementById('you');
+function weaponCard(g, boxes, yaw, pitch) {
+  const card = el('article', 'card');
+  card.appendChild(stage(boxes, yaw, pitch));
+  const info = el('div', 'info'); info.appendChild(el('h2', null, g.name)); info.appendChild(el('span', 'spec', g.rpm + ' per min · ' + (g.auto ? 'automatic' : 'per tap'))); card.appendChild(info);
+  card.appendChild(el('p', 'about', g.about));
+  const slots = el('div', 'slots');
+  makeSlot(slots, 'gun_' + g.id, { gun: g, title: g.name, label: g.label || (g.verb === 'Run' ? 'Engine sound' : g.verb === 'Swing' ? 'Swing sound' : 'Shot sound'), meta: { kind: 'weapon', weapon: g.id } });
+  card.appendChild(slots); gunsEl.appendChild(card);
+}
+// a zombie, or you: several sounds, and a button that plays them the way the game would (the leading entry of each, or your own try)
+function voiceCard(parent, o) {
+  const card = el('article', 'card');
+  card.appendChild(stage(o.boxes, o.yaw, o.pitch));
+  const info = el('div', 'info'); info.appendChild(el('h2', null, o.name)); info.appendChild(el('span', 'spec', o.spec)); card.appendChild(info);
+  card.appendChild(el('p', 'about', o.about));
+  const slots = el('div', 'slots'), keys = [];
+  o.slots.forEach(([label, key, meta]) => { keys.push(key); makeSlot(slots, key, { title: o.name + ' · ' + label.toLowerCase(), label, meta }); });
+  const G = o.game, row = el('div', 'row'), bGame = btn('fire', G.label); row.appendChild(bGame); slots.appendChild(row);
+  let gameT = 0;
+  const stopGame = () => { clearTimeout(gameT); gameT = 0; bGame.classList.remove('on'); bGame.textContent = G.label; };
+  const pickBuf = async key => { const e = entries(key)[0]; if (e) { const s = await loadSound(e.uid, key); return buf(cut(s.raw, s.len)); } const d = drafts[key]; return d ? buf(cut(d.raw, d.len)) : null; };
+  bGame.addEventListener('click', async () => {
+    if (gameT) { stopGame(); return; }
+    const pool = [], act = G.act != null ? await pickBuf(keys[G.act]).catch(() => null) : null;
+    for (const i of G.pool) { const b = await pickBuf(keys[i]).catch(() => null); if (b) pool.push(b); }
+    if (!pool.length && !act) { toast('No sounds here yet'); return; }
+    bGame.classList.add('on'); bGame.textContent = 'Stop'; let n = 0;
+    const go = () => {
+      n++; const b = act && (n % 4 === 0 || !pool.length) ? act : pool[(Math.random() * pool.length) | 0];
+      playAt(b, 0, 0.92 + Math.random() * 0.16, 0.9);
+      if (n >= G.n) { stopGame(); return; }
+      gameT = setTimeout(go, b.duration * 1000 + G.gap[0] + Math.random() * G.gap[1]);
+    };
+    gameT = 1; go();
+  });
+  card.appendChild(slots); parent.appendChild(card);
+}
+for (const g of GUNS) weaponCard(g, MODELS.guns[g.id], -1.25, 0.32);
+for (const g of VEHICLE_GUNS) weaponCard(g, MODELS[g.model], -0.9, 0.38);
+ZOMBIES.forEach((z, k) => voiceCard(zEl, { name: z.name, spec: 'kind ' + k, about: z.about, boxes: MODELS.zombies[k], yaw: Math.PI + 0.6, pitch: 0.18,
+  slots: ZSLOTS.map(([label, when], i) => [label || z.act, 'z' + k + '_' + (i + 1), { kind: 'zombie', zombie: k, when, slot: i + 1 }]),
+  game: { label: 'Play like in the game', pool: [0, 1, 2], act: 3, n: 10, gap: [600, 1600] } }));
+voiceCard(youEl, { name: 'You', spec: 'your character', about: 'What you sound like when you get hurt.', boxes: MODELS.player, yaw: Math.PI + 0.6, pitch: 0.18,
+  slots: [1, 2, 3].map(i => ['Small fall · a bit of damage ' + i, 'p_fall_' + i, { kind: 'player', when: 'fall', slot: i }])
+    .concat([1, 2, 3].map(i => ['Deadly fall · from a roof ' + i, 'p_falldead_' + i, { kind: 'player', when: 'falldead', slot: i }]))
+    .concat([1, 2, 3].map(i => ['A zombie hits you ' + i, 'p_hit_' + i, { kind: 'player', when: 'hit', slot: i }])),
+  game: { label: 'Play a zombie attack', pool: [6, 7, 8], n: 6, gap: [150, 650] } });
+
+// ---------------------------------------------------------------- tabs
+const tabs = { tabGuns: 'guns', tabZombies: 'zombies', tabYou: 'you', tabScores: 'scores' };
+for (const [t, s] of Object.entries(tabs)) document.getElementById(t).addEventListener('click', () => {
+  for (const [t2, s2] of Object.entries(tabs)) { document.getElementById(t2).setAttribute('aria-selected', String(t2 === t)); document.getElementById(s2).hidden = s2 !== s; }
+  try { localStorage.setItem('booth.tab', t); } catch (e) { /* ignore */ }
+  window.dispatchEvent(new Event('resize'));
+});
+try { const t = localStorage.getItem('booth.tab'); if (t && tabs[t]) document.getElementById(t).click(); } catch (e) { /* ignore */ }
+
+// ---------------------------------------------------------------- scores
+function renderScores() {
+  const pts = new Map(), crowns = new Map(), sent = new Map(), tb = document.querySelector('#perSound tbody'); tb.replaceChildren();
+  for (const key of Object.keys(titles)) {
+    const es = entries(key); if (!es.length) continue;
+    for (const e of es) { pts.set(e.uid, (pts.get(e.uid) || 0) + e.n); sent.set(e.uid, (sent.get(e.uid) || 0) + 1); }
+    if (es[0].n > 0) crowns.set(es[0].uid, (crowns.get(es[0].uid) || 0) + 1);
+    const tr = document.createElement('tr');
+    const td = (t, c) => { const d = document.createElement('td'); d.textContent = t; if (c) d.className = c; tr.appendChild(d); };
+    td(titles[key]); td(es[0].n > 0 ? es[0].name : es[0].name + ' (no votes yet)', es[0].n > 0 ? 'win' : 'dim'); td(String(es[0].n), 'num'); td(es[1] ? es[1].name + ' · ' + es[1].n : '-', 'dim');
+    tb.appendChild(tr);
+  }
+  if (!tb.children.length) { const tr = document.createElement('tr'), d = document.createElement('td'); d.colSpan = 4; d.className = 'dim'; d.textContent = 'No sounds sent in yet. Record one on the Guns or Zombies tab.'; tr.appendChild(d); tb.appendChild(tr); }
+  const ol = document.getElementById('people'); ol.replaceChildren();
+  const rows = [...sent.keys()].map(uid => ({ uid, name: (people.get(uid) || {}).name || 'Someone', p: pts.get(uid) || 0, c: crowns.get(uid) || 0, s: sent.get(uid) || 0 }))
+    .sort((a, b) => b.p - a.p || b.c - a.c || b.s - a.s);
+  rows.forEach((r, i) => {
+    const li = document.createElement('li'); if (i === 0 && r.p > 0) li.className = 'top';
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.name + (r.uid === me ? ' (you)' : '');
+    const st = document.createElement('span'); st.className = 'st'; st.textContent = r.p + (r.p === 1 ? ' point' : ' points') + ' · ' + '♛'.repeat(Math.min(r.c, 12)) + (r.c > 12 ? '+' + (r.c - 12) : '') + (r.c ? ' · ' : '') + r.s + ' sent in';
+    li.appendChild(nm); li.appendChild(st); ol.appendChild(li);
+  });
+  if (!rows.length) { const li = document.createElement('li'); li.className = 'dim'; li.textContent = 'Nobody has sent in a sound yet.'; ol.appendChild(li); }
+}
+const renderAll = () => { for (const k in renderers) renderers[k](); renderScores(); };
+renderScores();
+// ---------------------------------------------------------------- connect: an anonymous id for you, then everyone's entries and votes, live
+const ownerBtn = document.getElementById('ownerBtn');
+(async () => {
+  if (typeof firebase === 'undefined' || !FIREBASE_CONFIG || !FIREBASE_CONFIG.apiKey) { setStatus('<b>Not connected yet</b> · you can try sounds, but sending in and voting are not switched on', true); return; }
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    auth = firebase.auth(); fs = firebase.firestore();
+    await new Promise(res => { const u = auth.onAuthStateChanged(x => { u(); res(x); }); });
+    if (!auth.currentUser) await auth.signInAnonymously();
+  } catch (e) { setStatus('<b>Could not connect</b> · reload the page in a moment (' + (e.code || 'error') + ')', true); return; }
+  const who = () => { const u = auth.currentUser; me = u ? u.uid : null; isOwner = !!(u && !u.isAnonymous); ownerBtn.textContent = isOwner ? 'Sign out (Ruben)' : 'Ruben: sign in to tidy up'; renderAll(); };
+  who();
+  ownerBtn.addEventListener('click', async () => {
+    try {
+      if (isOwner) { await auth.signOut(); await auth.signInAnonymously(); }
+      else await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    } catch (e) { toast('Sign-in did not work (' + (e.code || 'error') + ')'); }
+    who();
+  });
+  let gotE = false, gotV = false;
+  const ready = () => { if (!gotE || !gotV) return;
+    let n = 0; for (const p of people.values()) n += Object.keys(p.slots || {}).length;
+    setStatus('<b>Live</b> · ' + n + (n === 1 ? ' sound' : ' sounds') + ' sent in by ' + people.size + (people.size === 1 ? ' person' : ' people')); };
+  fs.collection('entries').onSnapshot(s => {
+    people.clear();
+    s.forEach(doc => { const v = doc.data() || {}; if (!v.uid || !v.slot) return;
+      const p = people.get(v.uid) || { name: '', names: {}, slots: {}, last: 0 };
+      p.slots[v.slot] = v.at || 0; p.names[v.slot] = String(v.name || '').slice(0, 24);
+      if ((v.at || 0) >= p.last) { p.last = v.at || 0; p.name = p.names[v.slot]; }
+      people.set(v.uid, p); });
+    gotE = true; renderAll(); ready();
+  }, e => setStatus('<b>Could not load the entries</b> · reload the page in a moment (' + (e.code || 'error') + ')', true));
+  fs.collection('votes').onSnapshot(s => {
+    votes.clear();
+    s.forEach(doc => { const v = doc.data() || {}; if (!v.uid || !v.slot || !v.to) return; const o = votes.get(v.uid) || { v: {} }; o.v[v.slot] = v.to; votes.set(v.uid, o); });
+    gotV = true; renderAll(); ready();
+  }, e => setStatus('<b>Could not load the votes</b> · reload the page in a moment (' + (e.code || 'error') + ')', true));
+})();
+
+</script>
+</body>
+</html>
