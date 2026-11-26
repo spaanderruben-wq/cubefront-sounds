@@ -73,6 +73,11 @@ main { max-width: 1180px; margin: 0 auto; }
 .who .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .tag { font: 500 10px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: #1b1608; background: var(--brass); border-radius: 999px; padding: 2px 7px; flex: none; }
 .btn.small { flex: 0 0 auto; }
+.who .avg { margin-left: auto; font: 500 12px var(--mono); color: var(--brass); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stars { display: flex; gap: 2px; }
+.star { font-size: 26px; line-height: 1; padding: 4px 5px; color: var(--dim); background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+.star.on { color: var(--brass); }
+.star:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; border-radius: 4px; }
 .btn.vote { font-variant-numeric: tabular-nums; min-width: 58px; }
 .btn.vote.on { background: #3b3216; border-color: var(--brass); color: var(--brass); }
 .btn.send { background: #2c3a22; border-color: #4d6a36; color: #cfe8b4; }
@@ -99,7 +104,7 @@ main { max-width: 1180px; margin: 0 auto; }
 <body>
 <header>
   <h1>Cubefront Sound Booth</h1>
-  <p class="lead">Record your own sounds for the guns, the helicopter and jet, the zombies and your character, send them in, and vote for the best one. Every shot is cut short for you automatically; hold <b>Fire</b> to hear it at the gun's real fire rate. The sounds with the most votes go into the game.</p>
+  <p class="lead">Record your own sounds for the guns, the helicopter and jet, the zombies and your character, send them in, and give everyone's sounds 1 to 5 stars. Every shot is cut short for you automatically; hold <b>Fire</b> to hear it at the gun's real fire rate. The best-rated sounds go into the game.</p>
   <label class="namef" for="myName"><span>Your name</span><input id="myName" maxlength="24" autocomplete="nickname" placeholder="So people know whose sound it is"></label>
   <div class="status" id="status">Loading your saved sounds…</div>
 </header>
@@ -115,8 +120,8 @@ main { max-width: 1180px; margin: 0 auto; }
   <section id="you" class="grid" hidden></section>
   <section id="scores" hidden>
     <div class="board">
-      <div class="panel"><h3>Top sound makers</h3><p class="sub">Points = all votes your sounds got. A crown for every sound you lead.</p><ol id="people" class="ranks"></ol></div>
-      <div class="panel"><h3>Leading per sound</h3><p class="sub">The entry with the most votes. On a tie the one sent in first leads.</p><div class="tablewrap"><table id="perSound"><thead><tr><th>Sound</th><th>Leading</th><th class="num">Votes</th><th>Next</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="panel"><h3>Top sound makers</h3><p class="sub">Points = all the stars your sounds got. A crown for every sound you lead.</p><ol id="people" class="ranks"></ol></div>
+      <div class="panel"><h3>Leading per sound</h3><p class="sub">The best average stars (and how many people rated it). On a tie, more ratings wins, then the one sent in first.</p><div class="tablewrap"><table id="perSound"><thead><tr><th>Sound</th><th>Leading</th><th class="num">Stars</th><th>Next</th></tr></thead><tbody></tbody></table></div></div>
     </div>
   </section>
 </main>
@@ -125,8 +130,8 @@ main { max-width: 1180px; margin: 0 auto; }
   <ol>
     <li>Tap <b>Record</b>. If the page may use your microphone it records right here (tap again to stop). Otherwise your phone opens its own recorder, or lets you pick a sound file.</li>
     <li>The silence before the sound is cut off and the volume is levelled. Gun shots are also cut to the length on the slider and fade out at the end.</li>
-    <li>Happy with it? Tap <b>Send in</b>. Everyone sees it under that sound with your name, and can vote for it (one vote per sound, tap again to take it back).</li>
-    <li>Send in a new one to replace your old entry for that sound. The most-voted entry for each sound goes into the game.</li>
+    <li>Happy with it? Tap <b>Send in</b>. Everyone sees it under that sound with your name and can give it 1 to 5 stars (tap the same star again to take your stars back). You cannot rate your own.</li>
+    <li>Send in a new one to replace your old entry for that sound. The best-rated entry for each sound goes into the game.</li>
   </ol>
 </div>
 <input type="file" id="pick" accept="audio/*" capture hidden>
@@ -327,10 +332,13 @@ async function removeEntry(uid, key) {
   try { await fs.collection('entries').doc(id).delete(); await fs.collection('audio').doc(id).delete(); toast('Removed'); }
   catch (e) { toast(whyNot(e)); }
 }
-async function vote(key, uid) {
+// give an entry 1-5 stars (tap the same number again to take your stars back); you cannot rate your own
+async function vote(key, uid, stars) {
   if (notReady()) return;
-  const ref = fs.collection('votes').doc(me + '_' + key), cur = (votes.get(me) || { v: {} }).v[key];
-  try { if (cur === uid) await ref.delete(); else await ref.set({ slot: key, to: uid, uid: me, at: Date.now() }); }
+  if (uid === me) { toast('You cannot give stars to your own sound'); return; }
+  const ref = fs.collection('votes').doc(me + '_' + key), m = Object.assign({}, (votes.get(me) || { v: {} }).v[key] || {});
+  if (m[uid] === stars) delete m[uid]; else m[uid] = stars;
+  try { if (Object.keys(m).length) await ref.set({ slot: key, to: m, uid: me, at: Date.now() }); else await ref.delete(); }
   catch (e) { toast(whyNot(e)); }
 }
 function loadSound(uid, key) {
@@ -338,16 +346,17 @@ function loadSound(uid, key) {
   if (!soundCache.has(ck)) soundCache.set(ck, fs.collection('audio').doc(uid + '_' + key).get().then(s => { const v = s.exists ? s.data() : null; if (!v || !v.pcm16) throw new Error('gone'); return { raw: fromB64(v.pcm16), len: v.len || 0 }; }).catch(e => { soundCache.delete(ck); throw e; }));
   return soundCache.get(ck);
 }
-// the entries for one sound, most votes first
+// the entries for one sound, best average stars first (then the most ratings, then the earliest)
 function entries(key) {
   const out = [];
   for (const [uid, p] of people) if (p.slots && p.slots[key]) {
-    let n = 0, mineV = false;
-    for (const [vid, vv] of votes) if (vv.v && vv.v[key] === uid) { n++; if (vid === me) mineV = true; }
-    out.push({ uid, name: p.names[key] || p.name || 'Someone', n, mineV, at: p.slots[key] });
+    let n = 0, sum = 0, mine = 0;
+    for (const [vid, vv] of votes) { if (vid === uid) continue; const m = vv.v && vv.v[key]; const st = m ? Math.round(+m[uid]) : 0; if (!(st >= 1 && st <= 5)) continue; n++; sum += st; if (vid === me) mine = st; }
+    out.push({ uid, name: p.names[key] || p.name || 'Someone', n, sum, avg: n ? sum / n : 0, mine, at: p.slots[key] });
   }
-  return out.sort((a, b) => b.n - a.n || a.at - b.at);
+  return out.sort((a, b) => b.avg - a.avg || b.n - a.n || a.at - b.at);
 }
+const starTxt = e => e.n ? e.avg.toFixed(1) + ' ★ (' + e.n + ')' : 'no stars yet';
 // ---------------------------------------------------------------- recording: the microphone here if allowed, else the phone's own recorder / a file
 const pick = document.getElementById('pick');
 let micBlocked = !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder), rec = null, pickCb = null;
@@ -441,9 +450,13 @@ function makeSlot(parent, key, o) {
       bP.addEventListener('click', async () => { try { const s = await loadSound(e.uid, key); playAt(buf(cut(s.raw, s.len))); } catch (er) { toast('Could not load that sound'); } });
       acts.appendChild(bP);
       if (o.gun) { const bH = btn('fire small', 'Hold'); holdFire(bH, async () => { const s = await loadSound(e.uid, key); return buf(cut(s.raw, s.len)); }, o.gun.rpm); acts.appendChild(bH); }
-      const bV = btn('vote' + (e.mineV ? ' on' : ''), (e.mineV ? '★ ' : '☆ ') + e.n);
-      bV.setAttribute('aria-label', (e.mineV ? 'Remove your vote for ' : 'Vote for ') + e.name + ', ' + e.n + ' votes');
-      bV.addEventListener('click', () => vote(key, e.uid)); acts.appendChild(bV);
+      who.appendChild(el('span', 'avg', starTxt(e)));
+      if (e.uid !== me) {
+        const sr = el('div', 'stars'); sr.setAttribute('role', 'group'); sr.setAttribute('aria-label', 'Your stars for ' + e.name);
+        for (let k = 1; k <= 5; k++) { const b = el('button', 'star' + (k <= e.mine ? ' on' : ''), k <= e.mine ? '★' : '☆'); b.type = 'button';
+          b.setAttribute('aria-label', k + (k === 1 ? ' star' : ' stars') + (k === e.mine ? ' (yours, tap to take back)' : '')); b.addEventListener('click', () => vote(key, e.uid, k)); sr.appendChild(b); }
+        r.appendChild(sr);
+      }
       if (e.uid === me || isOwner) { const bX = btn('x', 'Remove'); bX.addEventListener('click', () => removeEntry(e.uid, key)); acts.appendChild(bX); }
       r.appendChild(acts); list.appendChild(r);
     });
@@ -518,11 +531,11 @@ function renderScores() {
   const pts = new Map(), crowns = new Map(), sent = new Map(), tb = document.querySelector('#perSound tbody'); tb.replaceChildren();
   for (const key of Object.keys(titles)) {
     const es = entries(key); if (!es.length) continue;
-    for (const e of es) { pts.set(e.uid, (pts.get(e.uid) || 0) + e.n); sent.set(e.uid, (sent.get(e.uid) || 0) + 1); }
+    for (const e of es) { pts.set(e.uid, (pts.get(e.uid) || 0) + e.sum); sent.set(e.uid, (sent.get(e.uid) || 0) + 1); }
     if (es[0].n > 0) crowns.set(es[0].uid, (crowns.get(es[0].uid) || 0) + 1);
     const tr = document.createElement('tr');
     const td = (t, c) => { const d = document.createElement('td'); d.textContent = t; if (c) d.className = c; tr.appendChild(d); };
-    td(titles[key]); td(es[0].n > 0 ? es[0].name : es[0].name + ' (no votes yet)', es[0].n > 0 ? 'win' : 'dim'); td(String(es[0].n), 'num'); td(es[1] ? es[1].name + ' · ' + es[1].n : '-', 'dim');
+    td(titles[key]); td(es[0].n > 0 ? es[0].name : es[0].name + ' (no stars yet)', es[0].n > 0 ? 'win' : 'dim'); td(es[0].n ? es[0].avg.toFixed(1) + ' (' + es[0].n + ')' : '-', 'num'); td(es[1] ? es[1].name + ' · ' + (es[1].n ? es[1].avg.toFixed(1) : '-') : '-', 'dim');
     tb.appendChild(tr);
   }
   if (!tb.children.length) { const tr = document.createElement('tr'), d = document.createElement('td'); d.colSpan = 4; d.className = 'dim'; d.textContent = 'No sounds sent in yet. Record one on the Guns or Zombies tab.'; tr.appendChild(d); tb.appendChild(tr); }
@@ -573,7 +586,7 @@ const ownerBtn = document.getElementById('ownerBtn');
   }, e => setStatus('<b>Could not load the entries</b> · reload the page in a moment (' + (e.code || 'error') + ')', true));
   fs.collection('votes').onSnapshot(s => {
     votes.clear();
-    s.forEach(doc => { const v = doc.data() || {}; if (!v.uid || !v.slot || !v.to) return; const o = votes.get(v.uid) || { v: {} }; o.v[v.slot] = v.to; votes.set(v.uid, o); });
+    s.forEach(doc => { const v = doc.data() || {}; if (!v.uid || !v.slot || !v.to) return; const o = votes.get(v.uid) || { v: {} }; o.v[v.slot] = typeof v.to === 'string' ? { [v.to]: 5 } : v.to; votes.set(v.uid, o); });
     gotV = true; renderAll(); ready();
   }, e => setStatus('<b>Could not load the votes</b> · reload the page in a moment (' + (e.code || 'error') + ')', true));
 })();
