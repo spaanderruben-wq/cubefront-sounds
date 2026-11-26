@@ -73,6 +73,9 @@ main { max-width: 1180px; margin: 0 auto; }
 .who .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .tag { font: 500 10px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: #1b1608; background: var(--brass); border-radius: 999px; padding: 2px 7px; flex: none; }
 .btn.small { flex: 0 0 auto; }
+.tag.pick { background: #8fc46a; }
+.btn.pickb { background: #26331d; border-color: #4d6a36; color: #cfe8b4; }
+.btn.pickb.on { background: #8fc46a; color: #14200d; border-color: #8fc46a; }
 .who .avg { margin-left: auto; font: 500 12px var(--mono); color: var(--brass); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .stars { display: flex; gap: 2px; }
 .star { font-size: 26px; line-height: 1; padding: 4px 5px; color: var(--dim); background: none; border: 0; cursor: pointer; touch-action: manipulation; }
@@ -121,7 +124,7 @@ main { max-width: 1180px; margin: 0 auto; }
   <section id="scores" hidden>
     <div class="board">
       <div class="panel"><h3>Top sound makers</h3><p class="sub">Points = all the stars your sounds got. A crown for every sound you lead.</p><ol id="people" class="ranks"></ol></div>
-      <div class="panel"><h3>Leading per sound</h3><p class="sub">The best average stars (and how many people rated it). On a tie, more ratings wins, then the one sent in first.</p><div class="tablewrap"><table id="perSound"><thead><tr><th>Sound</th><th>Leading</th><th class="num">Stars</th><th>Next</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="panel"><h3>Leading per sound</h3><p class="sub">The best average stars (and how many people rated it). On a tie, more ratings wins, then the one sent in first.</p><div class="tablewrap"><table id="perSound"><thead><tr><th>Sound</th><th>Leading</th><th class="num">Stars</th><th>Next</th><th>In the game</th></tr></thead><tbody></tbody></table></div></div>
     </div>
   </section>
 </main>
@@ -135,7 +138,7 @@ main { max-width: 1180px; margin: 0 auto; }
   </ol>
 </div>
 <input type="file" id="pick" accept="audio/*" capture hidden>
-<footer class="foot"><button type="button" class="btn x" id="ownerBtn">Ruben: sign in to tidy up</button><span>Made for Cubefront · sounds and votes are stored on Google Firebase</span></footer>
+<footer class="foot"><button type="button" class="btn x" id="ownerBtn">Ruben: sign in to pick and tidy up</button><span>Made for Cubefront · sounds and votes are stored on Google Firebase</span></footer>
 <div id="toast" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -346,6 +349,17 @@ function loadSound(uid, key) {
   if (!soundCache.has(ck)) soundCache.set(ck, fs.collection('audio').doc(uid + '_' + key).get().then(s => { const v = s.exists ? s.data() : null; if (!v || !v.pcm16) throw new Error('gone'); return { raw: fromB64(v.pcm16), len: v.len || 0 }; }).catch(e => { soundCache.delete(ck); throw e; }));
   return soundCache.get(ck);
 }
+// Ruben's picks: for each sound the entries that go into the game (several allowed: the game then varies between them)
+// picks/<sound> {list: {person: time}} - only Ruben (signed in with Google) can change them, everyone sees them
+const picks = new Map();
+const isPicked = (key, uid) => !!(picks.get(key) || {})[uid];
+async function togglePick(key, uid) {
+  if (notReady()) return;
+  const l = Object.assign({}, picks.get(key) || {});
+  if (l[uid]) delete l[uid]; else l[uid] = Date.now();
+  try { if (Object.keys(l).length) await fs.collection('picks').doc(key).set({ list: l }); else await fs.collection('picks').doc(key).delete(); }
+  catch (e) { toast(e && e.code === 'permission-denied' ? 'Only Ruben can pick (sign in at the bottom; the picks rule must be in Firebase)' : whyNot(e)); }
+}
 // the entries for one sound, best average stars first (then the most ratings, then the earliest)
 function entries(key) {
   const out = [];
@@ -443,7 +457,7 @@ function makeSlot(parent, key, o) {
     list.replaceChildren();
     es.forEach((e, i) => {
       const r = el('div', 'entry' + (i === 0 && e.n > 0 ? ' lead' : ''));
-      const who = el('div', 'who'); who.appendChild(el('span', 'nm', e.name + (e.uid === me ? ' (you)' : ''))); if (i === 0 && e.n > 0) who.appendChild(el('span', 'tag', 'Leading'));
+      const who = el('div', 'who'); who.appendChild(el('span', 'nm', e.name + (e.uid === me ? ' (you)' : ''))); if (i === 0 && e.n > 0) who.appendChild(el('span', 'tag', 'Leading')); if (isPicked(key, e.uid)) who.appendChild(el('span', 'tag pick', 'In the game'));
       r.appendChild(who);
       const acts = el('div', 'row');
       const bP = btn('', o.gun ? 'Once' : 'Play');
@@ -457,6 +471,7 @@ function makeSlot(parent, key, o) {
           b.setAttribute('aria-label', k + (k === 1 ? ' star' : ' stars') + (k === e.mine ? ' (yours, tap to take back)' : '')); b.addEventListener('click', () => vote(key, e.uid, k)); sr.appendChild(b); }
         r.appendChild(sr);
       }
+      if (isOwner) { const on = isPicked(key, e.uid), bK = btn('pickb' + (on ? ' on' : ''), on ? '✓ Picked' : 'Pick for game'); bK.addEventListener('click', () => togglePick(key, e.uid)); acts.appendChild(bK); }
       if (e.uid === me || isOwner) { const bX = btn('x', 'Remove'); bX.addEventListener('click', () => removeEntry(e.uid, key)); acts.appendChild(bX); }
       r.appendChild(acts); list.appendChild(r);
     });
@@ -536,6 +551,7 @@ function renderScores() {
     const tr = document.createElement('tr');
     const td = (t, c) => { const d = document.createElement('td'); d.textContent = t; if (c) d.className = c; tr.appendChild(d); };
     td(titles[key]); td(es[0].n > 0 ? es[0].name : es[0].name + ' (no stars yet)', es[0].n > 0 ? 'win' : 'dim'); td(es[0].n ? es[0].avg.toFixed(1) + ' (' + es[0].n + ')' : '-', 'num'); td(es[1] ? es[1].name + ' · ' + (es[1].n ? es[1].avg.toFixed(1) : '-') : '-', 'dim');
+    { const pk = es.filter(e => isPicked(key, e.uid)).map(e => e.name); td(pk.length ? pk.join(', ') : '-', pk.length ? 'win' : 'dim'); }
     tb.appendChild(tr);
   }
   if (!tb.children.length) { const tr = document.createElement('tr'), d = document.createElement('td'); d.colSpan = 4; d.className = 'dim'; d.textContent = 'No sounds sent in yet. Record one on the Guns or Zombies tab.'; tr.appendChild(d); tb.appendChild(tr); }
@@ -562,7 +578,7 @@ const ownerBtn = document.getElementById('ownerBtn');
     await new Promise(res => { const u = auth.onAuthStateChanged(x => { u(); res(x); }); });
     if (!auth.currentUser) await auth.signInAnonymously();
   } catch (e) { setStatus('<b>Could not connect</b> · reload the page in a moment (' + (e.code || 'error') + ')', true); return; }
-  const who = () => { const u = auth.currentUser; me = u ? u.uid : null; isOwner = !!(u && !u.isAnonymous); ownerBtn.textContent = isOwner ? 'Sign out (Ruben)' : 'Ruben: sign in to tidy up'; renderAll(); };
+  const who = () => { const u = auth.currentUser; me = u ? u.uid : null; isOwner = !!(u && !u.isAnonymous); ownerBtn.textContent = isOwner ? 'Sign out (Ruben)' : 'Ruben: sign in to pick and tidy up'; renderAll(); };
   who();
   ownerBtn.addEventListener('click', async () => {
     try {
@@ -584,6 +600,7 @@ const ownerBtn = document.getElementById('ownerBtn');
       people.set(v.uid, p); });
     gotE = true; renderAll(); ready();
   }, e => setStatus('<b>Could not load the entries</b> · reload the page in a moment (' + (e.code || 'error') + ')', true));
+  fs.collection('picks').onSnapshot(s => { picks.clear(); s.forEach(doc => { const v = doc.data() || {}; if (v.list && typeof v.list === 'object') picks.set(doc.id, v.list); }); renderAll(); }, () => { /* picks not readable yet: the rule is missing */ });
   fs.collection('votes').onSnapshot(s => {
     votes.clear();
     s.forEach(doc => { const v = doc.data() || {}; if (!v.uid || !v.slot || !v.to) return; const o = votes.get(v.uid) || { v: {} }; o.v[v.slot] = typeof v.to === 'string' ? { [v.to]: 5 } : v.to; votes.set(v.uid, o); });
