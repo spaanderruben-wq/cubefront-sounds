@@ -46,6 +46,7 @@ main { max-width: 1180px; margin: 0 auto; }
 .wave { width: 100%; height: 38px; display: block; background: #171910; border-radius: 4px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .btn { font: 600 13px var(--body); color: var(--fg); background: #33382a; border: 1px solid #454b37; border-radius: 6px; padding: 9px 12px; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+body.tanksOnly #tabGuns, body.tanksOnly #tabZombies, body.tanksOnly #tabYou { display: none; }
 .btn.ref { margin: 0 0 10px; background: #2b3343; border-color: #3e4a63; color: #cfe0ff; }
 .btn:disabled { opacity: 0.35; cursor: default; }
 .btn.rec { background: #3c231d; border-color: #6e3426; color: #ffb3a4; }
@@ -114,12 +115,14 @@ main { max-width: 1180px; margin: 0 auto; }
 </header>
 <nav role="tablist">
   <button role="tab" id="tabGuns" aria-selected="true">Guns</button>
+  <button role="tab" id="tabTanks" aria-selected="false">Tanks</button>
   <button role="tab" id="tabZombies" aria-selected="false">Zombies</button>
   <button role="tab" id="tabYou" aria-selected="false">You</button>
   <button role="tab" id="tabScores" aria-selected="false">Scores</button>
 </nav>
 <main>
   <section id="guns" class="grid"></section>
+  <section id="tanks" class="grid" hidden></section>
   <section id="zombies" class="grid" hidden></section>
   <section id="you" class="grid" hidden></section>
   <section id="scores" hidden>
@@ -176,11 +179,12 @@ const VEHICLE_GUNS = [
   { id: 'jet_gun', model: 'jet', name: 'Jet cannons', rpm: 1090, auto: true, len: 150, about: 'The nose cannons of the jet.' },
   { id: 'jet_rkt', model: 'jet', name: 'Jet rockets', rpm: 86, auto: false, len: 900, about: 'A rocket from under the wing.', label: 'Launch sound' },
   { id: 'tank_gun', model: 'tank0', ref: 'tank_gun', name: 'Battle tank cannon', rpm: 15, auto: false, len: 1400, label: 'Shot sound', about: 'One huge shell leaving the barrel. Tip: record only the BANG of the gun itself, no explosion: the game plays the explosion where the shell lands.' },
+  { id: 'tank_hit', model: 'tank0', ref: 'tank_hit', name: 'Shell hitting', rpm: 15, auto: false, len: 1500, label: 'Impact sound', about: 'Where the battle tank\'s huge shell lands: the explosion. Tip: a deep, heavy boom with a crack and falling rubble, about one to one and a half seconds.' },
   { id: 'tank_flak', model: 'tank1', ref: 'tank_flak', name: 'Flak tank guns', rpm: 120, auto: true, len: 450, label: 'Shot sound', about: 'Two big rounds a second, each one knocks a block out. Tip: one heavy, short thump-crack per round; no explosion at the end.' },
   { id: 'tank_rkt', model: 'tank2', ref: 'tank_rkt', name: 'Rocket tank rockets', rpm: 300, auto: true, len: 700, label: 'Launch sound', about: 'Six rockets fly out one after another. Tip: record ONE rocket leaving its tube (the whoosh); the game plays it six times in a row.' },
   { id: 'tank_mg', model: 'tank0', ref: 'tank_mg', name: 'Tank machine gun', rpm: 700, auto: true, len: 130, label: 'Shot sound', about: 'The machine gun on the turret. Tip: one short, dry shot.' },
   { id: 'tank_drive', model: 'tank0', ref: 'tank_drive', name: 'Tank tracks (driving)', rpm: 200, auto: true, len: 300, verb: 'Run', label: 'Driving sound', about: 'Tip: record something SHORT, a quarter to half a second: a metallic clank, rattle or squeak, like steel tracks. The game plays it over and over while you drive, faster when you go faster, so a long recording would sound wrong.' },
-  { id: 'tank_reload', model: 'tank0', ref: 'tank_reload', name: 'Tank reloading', rpm: 30, auto: false, len: 1500, label: 'Reload sound', about: 'Plays when the gun starts loading (the screen shows how long it takes). Tip: one to two seconds: a heavy shell sliding in and the breech slamming shut. It does not need to last the whole reload.' },
+  { id: 'tank_reload', model: 'tank0', ref: 'tank_reload', name: 'Reloading (changing ammunition)', rpm: 30, auto: false, len: 1500, label: 'Reload sound', about: 'Plays when the gun starts loading (the screen shows how long it takes). Tip: one to two seconds: a heavy shell sliding in and the breech slamming shut. It does not need to last the whole reload.' },
   { id: 'tank_ready', model: 'tank0', ref: 'tank_ready', name: 'Gun loaded', rpm: 30, auto: false, len: 250, label: 'Ready sound', about: 'Plays when the gun is loaded again. Tip: a short click or clack.' },
 ];
 const ZSLOTS = [['Around you 1', 'idle'], ['Around you 2', 'idle'], ['Around you 3', 'idle'], ['', 'act']];
@@ -500,7 +504,7 @@ function weaponCard(g, boxes, yaw, pitch) {
   if (g.ref) { const rb = btn('ref', '▶ The game’s sound now'); let au = null; rb.addEventListener('click', () => { try { if (!au) au = new Audio('ref/' + g.ref + '.wav'); au.currentTime = 0; const pr = au.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) { /* no audio */ } }); card.appendChild(rb); }   // where we want to go: the sound the game makes now
   const slots = el('div', 'slots');
   makeSlot(slots, 'gun_' + g.id, { gun: g, title: g.name, label: g.label || (g.verb === 'Run' ? 'Engine sound' : g.verb === 'Swing' ? 'Swing sound' : 'Shot sound'), meta: { kind: 'weapon', weapon: g.id } });
-  card.appendChild(slots); gunsEl.appendChild(card);
+  card.appendChild(slots); (g.parent || gunsEl).appendChild(card);
 }
 // a zombie, or you: several sounds, and a button that plays them the way the game would (the leading entry of each, or your own try)
 function voiceCard(parent, o) {
@@ -531,7 +535,8 @@ function voiceCard(parent, o) {
   card.appendChild(slots); parent.appendChild(card);
 }
 for (const g of GUNS) weaponCard(g, MODELS.guns[g.id], -1.25, 0.32);
-for (const g of VEHICLE_GUNS) weaponCard(g, MODELS[g.model], -0.9, 0.38);
+const tanksEl = document.getElementById('tanks');
+for (const g of VEHICLE_GUNS) weaponCard(/^tank/.test(g.model) ? Object.assign({ parent: tanksEl }, g) : g, MODELS[g.model], -0.9, 0.38);
 ZOMBIES.forEach((z, k) => voiceCard(zEl, { name: z.name, spec: 'kind ' + k, about: z.about, boxes: MODELS.zombies[k], yaw: Math.PI + 0.6, pitch: 0.18,
   slots: ZSLOTS.map(([label, when], i) => [label || z.act, 'z' + k + '_' + (i + 1), { kind: 'zombie', zombie: k, when, slot: i + 1 }]),
   game: { label: 'Play like in the game', pool: [0, 1, 2], act: 3, n: 10, gap: [600, 1600] } }));
@@ -542,13 +547,20 @@ voiceCard(youEl, { name: 'You', spec: 'your character', about: 'What you sound l
   game: { label: 'Play a zombie attack', pool: [6, 7, 8], n: 6, gap: [150, 650] } });
 
 // ---------------------------------------------------------------- tabs
-const tabs = { tabGuns: 'guns', tabZombies: 'zombies', tabYou: 'you', tabScores: 'scores' };
+const tabs = { tabGuns: 'guns', tabTanks: 'tanks', tabZombies: 'zombies', tabYou: 'you', tabScores: 'scores' };
 for (const [t, s] of Object.entries(tabs)) document.getElementById(t).addEventListener('click', () => {
   for (const [t2, s2] of Object.entries(tabs)) { document.getElementById(t2).setAttribute('aria-selected', String(t2 === t)); document.getElementById(s2).hidden = s2 !== s; }
   try { localStorage.setItem('booth.tab', t); } catch (e) { /* ignore */ }
   window.dispatchEvent(new Event('resize'));
 });
 try { const t = localStorage.getItem('booth.tab'); if (t && tabs[t]) document.getElementById(t).click(); } catch (e) { /* ignore */ }
+if (/[?&]tanks\b/.test(location.search)) {           // the tanks-only link: just the tank sounds
+  document.body.classList.add('tanksOnly'); document.title = 'Cubefront Sound Booth · Tanks';
+  document.querySelector('header h1').textContent = 'Cubefront Sound Booth \u00b7 Tanks';
+  document.querySelector('header .lead').innerHTML = 'Make the sounds for the three tanks: <b>shooting</b>, <b>reloading</b>, <b>the shell hitting</b> and <b>driving</b>. On every card, tap <b>\u25b6 The game\u2019s sound now</b> to hear what it sounds like today, then record yours and give the others stars. '
+    + 'Tips: a shot is only the bang of the gun itself, short and dry (the explosion where it lands is its own sound). The driving sound must be <b>short</b>, a quarter to half a second, metallic: the game plays it over and over, faster when you drive faster.';
+  document.getElementById('tabTanks').click();
+}
 
 // ---------------------------------------------------------------- scores
 function renderScores() {
