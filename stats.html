@@ -74,14 +74,13 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
   <div class="top">
     <div>
       <h1>Cubefront players</h1>
-      <p class="sub" id="sub">Who played, when, where and for how long. Only you can see this.</p>
+      <p class="sub" id="sub">Who played, when, where and for how long. No login: anyone with this link can see it.</p>
     </div>
-    <button class="btn" id="authBtn" type="button" hidden>Sign out</button>
   </div>
 
   <div class="panel gate" id="gate">
-    <p>Sign in with your Google account to see the players. Nobody else can read this data, even though anyone can open this page.</p>
-    <button class="btn primary" id="signIn" type="button">Sign in with Google</button>
+    <p>Loading the players…</p>
+    <button class="btn primary" id="signIn" type="button" hidden>Sign in with Google</button>
     <p><a href="?demo" style="color: var(--accent-hi)">See it with example data</a></p>
     <p class="status" id="status"></p>
   </div>
@@ -115,13 +114,12 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 (function () {
 'use strict';
 const CFG = { apiKey: 'AIzaSyC0BkbzCtIAbu7ArBTHaf3LLKAQ_nryyHM', authDomain: 'cubefront-sounds.firebaseapp.com', projectId: 'cubefront-sounds', appId: '1:236796365475:web:65090fd943128687d00d16' };
-const OWNER = 'spaanderruben@gmail.com';
 const CITYN = { arnhem: 'Arnhem', apeldoorn: 'Apeldoorn', nijmegen: 'Nijmegen', zutphen: 'Zutphen', amsterdam: 'Amsterdam', rotterdam: 'Rotterdam', denhaag: 'Den Haag',
   utrecht: 'Utrecht', groningen: 'Groningen', eindhoven: 'Eindhoven', maastricht: 'Maastricht', haarlem: 'Haarlem', zwolle: 'Zwolle', deventer: 'Deventer', zandvoort: 'Zandvoort', urk: 'Urk', happy: 'Happy City' };
 const CITY = new Proxy(CITYN, { get: (o, k) => Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined });   // a forged city id never reads Object's own fields
@@ -253,7 +251,8 @@ async function load(fresh) {                           // fresh: the minute refr
     $('status2').textContent = capped ? 'Only the newest 5000 visits of this period are shown.' : '';
     render();
   } catch (e) {
-    if (!loadedAt) showGate('Could not read the players (' + (e.code || e.message || 'error') + '). Signed in with the right Google account?');
+    if (!loadedAt && e.code === 'permission-denied') { $('signIn').hidden = false; showGate('The no-login rule is not in Firebase yet: sign in with Google for now.'); }   // (the old way, until the rule is changed)
+    else if (!loadedAt) showGate('Could not read the players (' + (e.code || e.message || 'error') + ').');
     else $('status2').textContent = 'Could not refresh just now (' + (e.code || 'offline') + '). Trying again in a minute.';
   }
 }
@@ -281,23 +280,16 @@ function demoData() {
   online = [{ name: 'Tiger', city: 'amsterdam', since: now - 62 * MIN }, { name: 'Sanne', city: 'amsterdam', since: now - 21 * MIN }, { name: 'Ruben', city: 'arnhem', since: now - 34 * MIN }];
 }
 
-// ---- sign in (Google), only the owner gets data
+// ---- no login: the data is open to whoever has the link (Ruben's choice)
 if (DEMO) { $('demoTag').hidden = false; $('sub').textContent = 'Example data: made-up players, to show how the page works.'; showApp(); load(); return; }
 if (typeof firebase === 'undefined') { showGate('Could not load Firebase. Reload the page in a moment.'); return; }
-firebase.initializeApp(CFG); const auth = firebase.auth(); db = firebase.firestore();
-auth.getRedirectResult().catch(() => {});
-auth.onAuthStateChanged(u => {
-  $('authBtn').hidden = !u || u.isAnonymous;
-  if (u && !u.isAnonymous && u.email === OWNER) { showApp(); load(); }
-  else if (u && !u.isAnonymous) showGate('Signed in as ' + u.email + '. Only Ruben can see the players.');
-  else showGate('');
+firebase.initializeApp(CFG); db = firebase.firestore();
+showApp(); load();
+$('signIn').addEventListener('click', async () => {        // only needed while the Firebase rule still asks for Ruben's Google account
+  const auth = firebase.auth(), p = new firebase.auth.GoogleAuthProvider();
+  auth.onAuthStateChanged(u => { if (u && !u.isAnonymous) { $('signIn').hidden = true; showApp(); load(); } });
+  try { await auth.signInWithPopup(p); } catch (e) { if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') auth.signInWithRedirect(p); else $('status').textContent = 'Sign-in did not work (' + (e.code || 'error') + ').'; }
 });
-$('signIn').addEventListener('click', async () => {
-  const p = new firebase.auth.GoogleAuthProvider();
-  try { await auth.signInWithPopup(p); }
-  catch (e) { if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') auth.signInWithRedirect(p); else $('status').textContent = 'Sign-in did not work (' + (e.code || 'error') + ').'; }
-});
-$('authBtn').addEventListener('click', () => auth.signOut());
 setInterval(() => { if (!$('app').hidden && !document.hidden) load(true); }, 60000);         // fresh every minute while in front: only what changed
 })();
 </script>
