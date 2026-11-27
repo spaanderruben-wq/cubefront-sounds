@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Cubefront Players</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap">
+<style>
+/* Layout: one column; summary tiles, who's on now, the timeline, then people, cities and every visit. Dark, like the game. */
+:root {
+  --bg: #0a110b; --panel: #111c12; --line: #ffffff1c; --ink: #eef3e2; --muted: #93a38a; --accent: #6fb23a; --accent-hi: #a6e46a;
+  --gold: #e2b04a; --live: #ff5a4a; --wall: #3b5a2a;
+  --display: "Bungee", "Arial Black", Impact, sans-serif; --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); margin: 0; }
+body { font: 15px/1.5 var(--body); padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+.wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(26px, 6vw, 40px); margin: 0; line-height: 1.05; letter-spacing: .03em; text-shadow: 0 3px 0 var(--wall); }
+h2 { font-family: var(--display); font-weight: 400; font-size: 18px; letter-spacing: .03em; margin: 0 0 10px; }
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.sub { color: var(--muted); margin: 6px 0 0; }
+.btn { font: inherit; font-weight: 600; color: var(--ink); background: #ffffff10; border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: #0c1606; border-color: transparent; font-family: var(--display); font-weight: 400; letter-spacing: .03em; }
+.btn:focus-visible, .chip:focus-visible, select:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.gate { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.gate p { margin: 0; max-width: 60ch; color: var(--muted); }
+.demo { display: inline-block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); border: 1px solid #e2b04a66; border-radius: 4px; padding: 2px 7px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: #ffffff0c; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: #0c1606; border-color: transparent; }
+select { font: inherit; font-size: 13px; color: var(--ink); background: #0008; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.tile b { display: block; font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--muted); font-size: 13px; }
+.now { display: flex; flex-wrap: wrap; gap: 8px; }
+.now .p { background: #ffffff0a; border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+.now .p b::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--live); margin-right: 6px; vertical-align: 1px; }
+.now .p span { color: var(--muted); }
+.muted { color: var(--muted); }
+.tl { position: relative; overflow-x: auto; }
+.tl svg { display: block; }
+.tl text { fill: var(--muted); font: 11px var(--body); }
+.tl .name { fill: var(--ink); font-weight: 600; }
+.tl rect.bar { fill: var(--accent); }
+.tl rect.bar.open { fill: var(--accent-hi); }
+.tl rect.bar:hover, .tl rect.bar.on { fill: var(--gold); }
+.tl line.grid { stroke: #ffffff14; }
+.tip { position: absolute; pointer-events: none; background: #050905ee; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.4; max-width: 240px; z-index: 2; }
+.tip b { display: block; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid #ffffff0d; vertical-align: top; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sp { display: inline-block; background: #ffffff10; border-radius: 4px; padding: 0 6px; margin: 0 4px 3px 0; font-size: 12px; color: var(--ink); white-space: nowrap; }
+.sp i { color: var(--muted); font-style: normal; }
+.hint { color: var(--gold); font-size: 12px; }
+.live { color: var(--live); font-weight: 800; font-size: 12px; white-space: nowrap; }
+.foot { color: var(--muted); font-size: 13px; }
+.status { color: var(--muted); font-size: 13px; }
+@media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hide-s { display: none; } th, td { padding: 6px 5px; } table { font-size: 13px; } .panel { padding: 12px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Cubefront players</h1>
+      <p class="sub" id="sub">Who played, when, where and for how long. Only you can see this.</p>
+    </div>
+    <button class="btn" id="authBtn" type="button" hidden>Sign out</button>
+  </div>
+
+  <div class="panel gate" id="gate">
+    <p>Sign in with your Google account to see the players. Nobody else can read this data, even though anyone can open this page.</p>
+    <button class="btn primary" id="signIn" type="button">Sign in with Google</button>
+    <p><a href="?demo" style="color: var(--accent-hi)">See it with example data</a></p>
+    <p class="status" id="status"></p>
+  </div>
+
+  <div id="app" hidden>
+    <div style="display: flex; flex-direction: column; gap: 22px;">
+      <div class="filters" role="group" aria-label="Time and city">
+        <span class="demo" id="demoTag" hidden>Example data</span>
+        <button class="chip" data-r="1" type="button">24 hours</button>
+        <button class="chip" data-r="7" type="button" aria-pressed="true">7 days</button>
+        <button class="chip" data-r="30" type="button">30 days</button>
+        <button class="chip" data-r="0" type="button">All</button>
+        <select id="city" aria-label="City"><option value="">All cities</option></select>
+        <span class="status" id="status2"></span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><b id="kPeople">0</b><span>players</span></div>
+        <div class="tile"><b id="kVisits">0</b><span>visits</span></div>
+        <div class="tile"><b id="kTime">0</b><span>played in total</span></div>
+        <div class="tile"><b id="kNow">0</b><span>online now</span></div>
+      </div>
+      <div class="panel"><h2>Online now</h2><div class="now" id="now"></div></div>
+      <div class="panel"><h2 id="tlTitle">When they played</h2><div class="tl" id="tl"></div><p class="foot" id="tlNote" style="margin: 8px 0 0"></p></div>
+      <div class="panel"><h2>Players</h2><div class="scroll"><table><thead><tr><th>Player</th><th>Names used</th><th class="hide-s">Visits</th><th>Played</th><th>Last seen</th><th class="hide-s">Mostly in</th></tr></thead><tbody id="people"></tbody></table></div>
+        <p class="foot" style="margin: 10px 0 0">Names are matched without capitals, accents, spaces, a number at the end or double letters: Tiger, TIGER, Tigger and tiger2 are one player. That can also join two different people (Bas and Bass), so every spelling is listed. "Same device" means two names were used in the same browser.</p></div>
+      <div class="panel"><h2>Cities</h2><div class="scroll"><table><thead><tr><th>City</th><th>Visits</th><th>Players</th><th>Played</th></tr></thead><tbody id="cities"></tbody></table></div></div>
+      <div class="panel"><h2>Every visit</h2><div class="scroll"><table><thead><tr><th>Started</th><th>Name</th><th>City</th><th>How long</th></tr></thead><tbody id="log"></tbody></table></div>
+        <p class="foot" style="margin: 10px 0 0" id="logNote">A visit ends at the game's last sign of life, which it sends every 3 minutes, so times are right to within about 3 minutes.</p></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function () {
+'use strict';
+const CFG = { apiKey: 'AIzaSyC0BkbzCtIAbu7ArBTHaf3LLKAQ_nryyHM', authDomain: 'cubefront-sounds.firebaseapp.com', projectId: 'cubefront-sounds', appId: '1:236796365475:web:65090fd943128687d00d16' };
+const OWNER = 'spaanderruben@gmail.com';
+const CITYN = { arnhem: 'Arnhem', apeldoorn: 'Apeldoorn', nijmegen: 'Nijmegen', zutphen: 'Zutphen', amsterdam: 'Amsterdam', rotterdam: 'Rotterdam', denhaag: 'Den Haag',
+  utrecht: 'Utrecht', groningen: 'Groningen', eindhoven: 'Eindhoven', maastricht: 'Maastricht', haarlem: 'Haarlem', zwolle: 'Zwolle', deventer: 'Deventer', zandvoort: 'Zandvoort', urk: 'Urk' };
+const CITY = new Proxy(CITYN, { get: (o, k) => Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined });   // a forged city id never reads Object's own fields
+const DEMO = /[?&]demo\b/.test(location.search);
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const MIN = 60000, DAY = 86400000, ALIVE = 4.5 * MIN;
+let sessions = [], online = [], range = 7, city = '', db = null, onUid = new Set();
+const isLive = s => onUid.has(s.uid) && Date.now() - s.last < 7 * MIN;     // still in the game: in the lobby now and this visit is recent
+
+// ---- the same player under different spellings
+function personKey(name) {
+  const raw = String(name || '').trim();
+  let s = raw.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  s = s.replace(/[0-9]+$/, '').replace(/(.)\1+/g, '$1');
+  if (s.length < 2 || /[^\u0000-\u024f\s]/.test(raw)) return raw.toLowerCase().replace(/\s+/g, ' ') || '?';      // other scripts, or too little left: as typed
+  return s;
+}
+// ---- formatting
+const playMs = s => s.last - s.start < 30000 ? 1.5 * MIN : s.last - s.start;          // a visit with no later sign of life: under 3 minutes
+function dur(ms) { const m = Math.round(ms / MIN); if (m < 60) return m + ' min'; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0'); }
+const visitLen = s => s.last - s.start < 30000 ? 'under 3 min' : dur(s.last - s.start);
+const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }), fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+const when = t => { const d = new Date(t), today = new Date(); return (d.toDateString() === today.toDateString() ? 'Today' : d.toDateString() === new Date(Date.now() - DAY).toDateString() ? 'Yesterday' : fmtDay.format(d)) + ' ' + fmtTime.format(d); };
+function ago(t) { const m = Math.round((Date.now() - t) / MIN); if (m < 2) return 'just now'; if (m < 60) return m + ' min ago'; const h = Math.round(m / 60); if (h < 24) return h + ' h ago'; const d = Math.round(h / 24); return d + (d === 1 ? ' day ago' : ' days ago'); }
+
+// ---- the data, grouped
+function view() {
+  const since = range ? Date.now() - range * DAY : 0;
+  return sessions.filter(s => s.start >= since && (!city || s.city === city)).sort((a, b) => b.start - a.start);
+}
+function people(list) {
+  const P = new Map(), uidKeys = new Map();
+  for (const s of list) {
+    const k = personKey(s.name); let p = P.get(k);
+    if (!p) P.set(k, p = { key: k, names: new Map(), uids: new Set(), visits: 0, total: 0, last: 0, cities: new Map(), sess: [] });
+    p.names.set(s.name, (p.names.get(s.name) || 0) + 1); p.uids.add(s.uid); p.visits++; p.total += playMs(s); p.last = Math.max(p.last, s.last); p.sess.push(s);
+    p.cities.set(s.city, (p.cities.get(s.city) || 0) + playMs(s));
+    let ks = uidKeys.get(s.uid); if (!ks) uidKeys.set(s.uid, ks = new Set()); ks.add(k);
+  }
+  for (const p of P.values()) {
+    p.name = [...p.names.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    p.same = new Set(); for (const u of p.uids) for (const k of uidKeys.get(u)) if (k !== p.key) p.same.add(k);
+    p.top = [...p.cities.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    p.live = p.sess.some(isLive);
+  }
+  return [...P.values()].sort((a, b) => b.total - a.total);
+}
+
+// ---- drawing
+function render() {
+  const list = view(), P = people(list), now = online.filter(o => !city || o.city === city);
+  $('kPeople').textContent = P.length; $('kVisits').textContent = list.length;
+  $('kTime').textContent = dur(list.reduce((a, s) => a + playMs(s), 0)); $('kNow').textContent = now.length;
+  const nb = $('now'); nb.textContent = '';
+  if (!now.length) nb.appendChild(el('span', 'muted', 'Nobody is playing right now.'));
+  for (const o of now) { const d = el('div', 'p'); d.append(el('b', '', o.name), el('span', '', ' · ' + (CITY[o.city] || o.city) + (o.since ? ' · ' + dur(Date.now() - o.since) : ''))); nb.appendChild(d); }
+  timeline(list, P);
+  const pb = $('people'); pb.textContent = '';
+  if (!P.length) { const tr = el('tr'), td = el('td', 'muted', 'No visits in this period yet.'); td.colSpan = 6; tr.appendChild(td); pb.appendChild(tr); }
+  const nameOf = new Map(P.map(p => [p.key, p.name]));
+  for (const p of P) {
+    const tr = el('tr'), a = el('td'); a.append(el('b', '', p.name)); if (p.live) a.append(' ', el('span', 'live', '● playing'));
+    if (p.same.size) { a.append(el('br')); a.append(el('span', 'hint', 'same device as ' + [...p.same].map(k => nameOf.get(k) || k).join(', '))); }
+    const n = el('td'); for (const [nm, c] of [...p.names.entries()].sort((x, y) => y[1] - x[1])) { const s = el('span', 'sp', nm + ' '); s.appendChild(el('i', '', '×' + c)); n.appendChild(s); }
+    tr.append(a, n, el('td', 'num hide-s', String(p.visits)), el('td', 'num', dur(p.total)), el('td', 'num', p.live ? 'now' : ago(p.last)), el('td', 'hide-s', CITY[p.top] || p.top));
+    pb.appendChild(tr);
+  }
+  const C = new Map(); for (const s of list) { let c = C.get(s.city); if (!c) C.set(s.city, c = { visits: 0, ppl: new Set(), total: 0 }); c.visits++; c.ppl.add(personKey(s.name)); c.total += playMs(s); }
+  const cb = $('cities'); cb.textContent = '';
+  for (const [id, c] of [...C.entries()].sort((a, b) => b[1].total - a[1].total)) { const tr = el('tr'); tr.append(el('td', '', CITY[id] || id), el('td', 'num', String(c.visits)), el('td', 'num', String(c.ppl.size)), el('td', 'num', dur(c.total))); cb.appendChild(tr); }
+  if (!C.size) { const tr = el('tr'), td = el('td', 'muted', 'No visits in this period yet.'); td.colSpan = 4; tr.appendChild(td); cb.appendChild(tr); }
+  const lb = $('log'); lb.textContent = '';
+  for (const s of list.slice(0, 300)) { const tr = el('tr'), d = el('td', 'num'); d.textContent = when(s.start); const len = el('td', 'num'); len.textContent = visitLen(s); if (isLive(s)) len.append(' ', el('span', 'live', '● now')); tr.append(d, el('td', '', s.name), el('td', '', CITY[s.city] || s.city), len); lb.appendChild(tr); }
+  if (!list.length) { const tr = el('tr'), td = el('td', 'muted', 'No visits in this period yet.'); td.colSpan = 4; tr.appendChild(td); lb.appendChild(tr); }
+  $('logNote').textContent = (list.length > 300 ? 'Showing the newest 300 of ' + list.length + ' visits. ' : '') + 'A visit ends at the game’s last sign of life, which it sends every 3 minutes, so times are right to within about 3 minutes.';
+}
+// one row per player, a bar per visit, over the last day or week
+function timeline(list, P) {
+  const box = $('tl'); box.textContent = '';
+  const span = range === 1 ? DAY : 7 * DAY, t1 = Date.now(), t0 = t1 - span, rows = P.filter(p => p.sess.some(s => s.last >= t0)).slice(0, 14);
+  $('tlTitle').textContent = range === 1 ? 'When they played · last 24 hours' : 'When they played · last 7 days';
+  $('tlNote').textContent = rows.length < P.filter(p => p.sess.some(s => s.last >= t0)).length ? 'The 14 players with the most play time.' : '';
+  if (!rows.length) { box.appendChild(el('p', 'muted', 'No visits in this period yet.')); return; }
+  const W = Math.max(520, box.clientWidth || 520), left = Math.min(130, W * .26), right = 8, rh = 24, top = 22, H = top + rows.length * rh + 4;
+  const x = t => left + (t - t0) / span * (W - left - right), NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Visits per player over time');
+  const mk = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  // ticks: midnights (week) or every 3 hours (day)
+  const ticks = []; if (range === 1) { const d = new Date(t0); d.setMinutes(0, 0, 0); d.setHours(Math.ceil(d.getHours() / 3) * 3); for (let t = d.getTime(); t < t1; t += 3 * 3600000) ticks.push([t, fmtTime.format(t)]); }
+  else { const d = new Date(t0); d.setHours(24, 0, 0, 0); for (let t = d.getTime(); t < t1; t += DAY) ticks.push([t, new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(t)]); }
+  for (const [t, lab] of ticks) { if (t <= t0) continue; svg.appendChild(mk('line', { class: 'grid', x1: x(t), x2: x(t), y1: top - 6, y2: H })); const tx = mk('text', { x: x(t) + 3, y: 12 }); tx.textContent = lab; svg.appendChild(tx); }
+  const tip = el('div', 'tip'); tip.hidden = true;
+  rows.forEach((p, r) => {
+    const y = top + r * rh, nm = mk('text', { class: 'name', x: 0, y: y + 15 }); nm.textContent = p.name.length > 16 ? p.name.slice(0, 15) + '…' : p.name; svg.appendChild(nm);
+    for (const s of p.sess) {
+      if (s.last < t0) continue;
+      const a = x(Math.max(s.start, t0)), b = x(Math.max(s.last, s.start + 3 * MIN)), live = isLive(s);
+      const bar = mk('rect', { class: 'bar' + (live ? ' open' : ''), x: a, y: y + 5, width: Math.max(3, b - a), height: 14, rx: 3 });
+      const show = e => { for (const q of svg.querySelectorAll('.bar.on')) q.classList.remove('on'); bar.classList.add('on'); tip.textContent = ''; tip.append(el('b', '', s.name + ' · ' + (CITY[s.city] || s.city)), el('span', '', when(s.start) + ' · ' + visitLen(s) + (live ? ' · playing now' : ''))); tip.hidden = false;
+        const R = box.getBoundingClientRect(), cx = (e.touches ? e.touches[0].clientX : e.clientX) - R.left + box.scrollLeft; tip.style.left = Math.min(Math.max(4, cx - 110), box.scrollLeft + R.width - 244) + 'px'; tip.style.top = (y < 50 ? y + 26 : y - 44) + 'px'; };
+      bar.addEventListener('mouseenter', show); bar.addEventListener('mousemove', show); bar.addEventListener('click', show);
+      bar.addEventListener('mouseleave', () => { tip.hidden = true; bar.classList.remove('on'); });
+      const hit = mk('rect', { x: a - 4, y: y + 1, width: Math.max(11, b - a + 8), height: 22, fill: 'transparent' }); hit.addEventListener('mouseenter', show); hit.addEventListener('click', show); hit.addEventListener('mouseleave', () => { tip.hidden = true; bar.classList.remove('on'); });
+      svg.append(hit, bar);
+    }
+  });
+  box.append(svg, tip);
+}
+
+// ---- loading
+const toS = d => { const v = d.data() || {}; if (!v.start || !v.start.toMillis) return null; const st = v.start.toMillis(), la = v.last && v.last.toMillis ? v.last.toMillis() : st; return { id: d.id, uid: v.uid || '', name: String(v.name || 'Player'), city: v.city || '', start: st, last: Math.max(la, st) }; };
+let loadedAt = 0, loadedFrom = Infinity, capped = false;          // loadedFrom: the oldest start already here (Infinity: nothing yet; 0: all)
+const merge = (snap) => { const by = new Map(sessions.map(x => [x.id, x])); snap.forEach(d => { const x = toS(d); if (x) by.set(x.id, x); }); sessions = [...by.values()]; };
+async function load(fresh) {                           // fresh: the minute refresh, only the visits that changed (a few reads)
+  if (DEMO) { if (!sessions.length) demoData(); render(); return; }
+  try {
+    const need = range ? Date.now() - range * DAY : 0, TS = firebase.firestore.Timestamp;
+    if (fresh && loadedAt) merge(await db.collection('sessions').where('last', '>=', TS.fromMillis(loadedAt - 15 * MIN)).limit(500).get());
+    else if (need < loadedFrom) {                      // only the part older than what is already here
+      let q = db.collection('sessions'); if (need) q = q.where('start', '>=', TS.fromMillis(need));
+      if (loadedFrom !== Infinity) q = q.where('start', '<', TS.fromMillis(loadedFrom));
+      const snap = await q.orderBy('start', 'desc').limit(5000).get(); merge(snap);
+      if (snap.size >= 5000) capped = true; loadedFrom = need;
+    }
+    loadedAt = Date.now();
+    const o = await db.collection('lobby').where('t', '>', TS.fromMillis(Date.now() - 6 * MIN)).limit(200).get();
+    online = []; onUid = new Set(); o.forEach(d => { const v = d.data() || {}; onUid.add(d.id); online.push({ name: String(v.name || 'Player'), city: v.city || '', since: v.since && v.since.toMillis ? v.since.toMillis() : 0 }); });
+    $('status2').textContent = capped ? 'Only the newest 5000 visits of this period are shown.' : '';
+    render();
+  } catch (e) {
+    if (!loadedAt) showGate('Could not read the players (' + (e.code || e.message || 'error') + '). Signed in with the right Google account?');
+    else $('status2').textContent = 'Could not refresh just now (' + (e.code || 'offline') + '). Trying again in a minute.';
+  }
+}
+function fillCities() { const s = $('city'); for (const id of Object.keys(CITYN).sort((a, b) => CITYN[a].localeCompare(CITYN[b]))) { const o = document.createElement('option'); o.value = id; o.textContent = CITY[id]; s.appendChild(o); } }
+function showApp() { $('gate').hidden = true; $('app').hidden = false; }
+function showGate(msg) { $('app').hidden = true; $('gate').hidden = false; $('status').textContent = msg || ''; }
+for (const b of document.querySelectorAll('.chip[data-r]')) b.addEventListener('click', () => { range = +b.dataset.r; for (const c of document.querySelectorAll('.chip[data-r]')) c.setAttribute('aria-pressed', String(c === b)); load(); });
+$('city').addEventListener('change', e => { city = e.target.value; render(); });
+let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+fillCities();
+
+// example data: made-up players with spelling slips, the last 8 days
+function demoData() {
+  const R = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+  const ppl = [['Tiger', ['Tiger', 'TIGER', 'Tigger', 'tiger2'], 'u1', ['amsterdam', 'zandvoort']], ['Ruben', ['Ruben', 'ruben'], 'u2', ['arnhem', 'nijmegen']], ['Tjark', ['Tjark', 'TJARK'], 'u3', ['arnhem']],
+    ['Sanne', ['Sanne', 'Sane'], 'u4', ['amsterdam', 'haarlem']], ['Bas', ['Bas'], 'u5', ['nijmegen']], ['Bass', ['Bass'], 'u6', ['rotterdam']], ['Lotte', ['Lotte'], 'u7', ['zandvoort', 'denhaag']],
+    ['Mo', ['Mo', 'Mo123'], 'u8', ['denhaag', 'rotterdam']], ['Kevin', ['Kevin'], 'u9', ['rotterdam', 'utrecht']], ['Daan', ['Daan'], 'u7', ['zandvoort']], ['Jay', ['Jay'], 'u10', ['amsterdam', 'groningen']]];
+  sessions = []; const now = Date.now();
+  ppl.forEach(([, names, uid, cities], k) => {
+    const n = 2 + Math.floor(R() * (k < 3 ? 9 : 5));
+    for (let i = 0; i < n; i++) { const start = now - R() * 8 * DAY, len = R() < .15 ? 0 : (5 + R() * 110) * MIN; sessions.push({ id: 'd' + k + '_' + i, uid, name: names[Math.floor(R() * names.length)], city: cities[Math.floor(R() * cities.length)], start, last: Math.min(now, start + len) }); }
+  });
+  sessions.push({ id: 'live1', uid: 'u1', name: 'Tiger', city: 'amsterdam', start: now - 62 * MIN, last: now - MIN }, { id: 'live2', uid: 'u4', name: 'Sanne', city: 'amsterdam', start: now - 21 * MIN, last: now - 2 * MIN }, { id: 'live3', uid: 'u2', name: 'Ruben', city: 'arnhem', start: now - 34 * MIN, last: now - MIN });
+  onUid = new Set(['u1', 'u4', 'u2']);
+  online = [{ name: 'Tiger', city: 'amsterdam', since: now - 62 * MIN }, { name: 'Sanne', city: 'amsterdam', since: now - 21 * MIN }, { name: 'Ruben', city: 'arnhem', since: now - 34 * MIN }];
+}
+
+// ---- sign in (Google), only the owner gets data
+if (DEMO) { $('demoTag').hidden = false; $('sub').textContent = 'Example data: made-up players, to show how the page works.'; showApp(); load(); return; }
+if (typeof firebase === 'undefined') { showGate('Could not load Firebase. Reload the page in a moment.'); return; }
+firebase.initializeApp(CFG); const auth = firebase.auth(); db = firebase.firestore();
+auth.getRedirectResult().catch(() => {});
+auth.onAuthStateChanged(u => {
+  $('authBtn').hidden = !u || u.isAnonymous;
+  if (u && !u.isAnonymous && u.email === OWNER) { showApp(); load(); }
+  else if (u && !u.isAnonymous) showGate('Signed in as ' + u.email + '. Only Ruben can see the players.');
+  else showGate('');
+});
+$('signIn').addEventListener('click', async () => {
+  const p = new firebase.auth.GoogleAuthProvider();
+  try { await auth.signInWithPopup(p); }
+  catch (e) { if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') auth.signInWithRedirect(p); else $('status').textContent = 'Sign-in did not work (' + (e.code || 'error') + ').'; }
+});
+$('authBtn').addEventListener('click', () => auth.signOut());
+setInterval(() => { if (!$('app').hidden && !document.hidden) load(true); }, 60000);         // fresh every minute while in front: only what changed
+})();
+</script>
+</body>
+</html>
