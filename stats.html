@@ -121,7 +121,7 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 'use strict';
 const CFG = { apiKey: 'AIzaSyC0BkbzCtIAbu7ArBTHaf3LLKAQ_nryyHM', authDomain: 'cubefront-sounds.firebaseapp.com', projectId: 'cubefront-sounds', appId: '1:236796365475:web:65090fd943128687d00d16' };
 const CITYN = { arnhem: 'Arnhem', apeldoorn: 'Apeldoorn', nijmegen: 'Nijmegen', zutphen: 'Zutphen', amsterdam: 'Amsterdam', rotterdam: 'Rotterdam', denhaag: 'Den Haag',
-  utrecht: 'Utrecht', groningen: 'Groningen', eindhoven: 'Eindhoven', maastricht: 'Maastricht', haarlem: 'Haarlem', zwolle: 'Zwolle', deventer: 'Deventer', zandvoort: 'Zandvoort', urk: 'Urk', happy: 'Happy City' };
+  utrecht: 'Utrecht', groningen: 'Groningen', eindhoven: 'Eindhoven', maastricht: 'Maastricht', haarlem: 'Haarlem', zwolle: 'Zwolle', deventer: 'Deventer', zandvoort: 'Zandvoort', urk: 'Urk', vaassen: 'Vaassen', happy: 'Happy City' };
 const CITY = new Proxy(CITYN, { get: (o, k) => { if (typeof k !== 'string') return undefined; if (Object.prototype.hasOwnProperty.call(o, k)) return o[k]; const m = /^([a-z]+?)tankb?$/.exec(k); return m && Object.prototype.hasOwnProperty.call(o, m[1]) ? o[m[1]] + ' (tanks)' : undefined; } });   // a forged city id never reads Object's own fields; 'arnhemtank': Arnhem's tank world
 const DEMO = /[?&]demo\b/.test(location.search);
 const $ = id => document.getElementById(id);
